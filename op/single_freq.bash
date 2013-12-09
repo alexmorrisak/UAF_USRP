@@ -1,38 +1,53 @@
 #!/bin/bash
 
+#Initialize Variables
 OPDIR="/home/alex/uhd/host/build/examples"
+cd ${OPDIR}
 BINDIR="/home/alex/sounder"
 PROCESS="${BINDIR}/process2.py"
 VISUAL="${BINDIR}/visual.py"
 
-cd ${OPDIR}
-touch ./freq_table.dat
-freq=4096000
+rm command_table.txt
+rm sounder_comm.fifo
+
+#Create sequence of commands that will be piped to the radar process "sounder"
+touch command_table.txt
+freq=4499000
 txfile="/home/alex/sounder/tx.dat"
-starttime=`TZ=America/Anchorage date +%H%M`
-rxfile="rx_${starttime}.dat"
+rxfile="${OPDIR}/20131126/rx.`TZ=America/Anchorage date +%H%M`.dat"
 samprate="250000"
-echo "$txfile $rxfile $samprate $freq" >> freq_table.dat
-echo "EXIT" >> ./freq_table.dat
-cat freq_table.dat
+echo "$txfile $rxfile $freq $samprate $samprate" >> command_table.txt
+echo "EXIT" >> command_table.txt
+cat command_table.txt
 
-mkfifo fifo
-#./sounder --nsamps 6000000 --args "addr=192.168.10.2" --tx-subdev "A:A" < fifo &
-/home/alex/sounder/alexsleep  < fifo &
-cat freq_table.dat > fifo 
+#Create pipe, start the USRP radar process, and send commands
+mkfifo sounder_comm.fifo
+./sounder --args "addr=192.168.10.2" < sounder_comm.fifo &
+cat command_table.txt > sounder_comm.fifo
 
+#Wait for the above process to finish
 wait $! 
-rm freq_table.dat
-rm fifo
 
-cd ${BINDIR}
-file=${OPDIR}/${rxfile}
+#Remove the command table and the pipe
+rm command_table.txt
+rm sounder_comm.fifo
+
+#Process the raw data file(s), yielding a numpy array output file
+flist=`ls ${OPDIR}/rx.*.dat`
 PROCESS="/home/alex/sounder/process3.py"
-outfile="rx_${starttime}"
-if [ ! -s "/home/alex/sounder/${outfile}.npy" ]; then
-  ${PROCESS} -R ${f} -f 400 -n 8192 -O ${outfile}
-fi
+for f in ${flist}; do
+        t=${f%%.dat}
+        t=${t##*rx.}
+        outfile="rx.${t}"
+        echo ${outfile}.dat
+        pwd
+        if [ -s "${OPDIR}/${outfile}.npy" ]; then continue; fi
+        ${PROCESS} -R ${f} -f 400 -n 8192 -O ${outfile}
+done
 
-rm ${rxfile}
+#Remove the raw data file(s)
+for f in ${flist}; do
+	rm ${f}
+done
 
 exit

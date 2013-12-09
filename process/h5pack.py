@@ -1,5 +1,10 @@
 #!/usr/bin/env python
 
+# The USRP process saves raw binary files.  The process.py program
+# processes them and yields a numpy array file.  This program takes 
+# many numpy array files from a single day and packs them into a single
+# hdf5 file.
+
 import numpy as np
 import matplotlib.pyplot as plt
 import h5py
