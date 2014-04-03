@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Not a working program.  Demonstrates perhaps how a swept-frequency
-# ionosonde might operate.
-
 touch ./freq_table.dat
 for i in {1..10}; do
 	freq=`expr $i \* 1000000`

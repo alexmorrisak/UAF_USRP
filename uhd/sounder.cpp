@@ -21,16 +21,16 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include <uhd/utils/thread_priority.hpp>
-#include <uhd/utils/safe_main.hpp>
-#include <uhd/utils/static.hpp>
+//#include <uhd/utils/thread_priority.hpp>
+//#include <uhd/utils/safe_main.hpp>
+//#include <uhd/utils/static.hpp>
 #include <uhd/usrp/multi_usrp.hpp>
-#include <uhd/exception.hpp>
+//#include <uhd/exception.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/program_options.hpp>
-#include <boost/math/special_functions/round.hpp>
-#include <boost/foreach.hpp>
-#include <boost/format.hpp>
+//#include <boost/math/special_functions/round.hpp>
+//#include <boost/foreach.hpp>
+//#include <boost/format.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <iostream>
@@ -46,7 +46,7 @@
 namespace po = boost::program_options;
 
 /***********************************************************************
- * Function to get the length of the transmit sequence file
+ * File to get the length of the transmit sequence file
  **********************************************************************/
 long get_file_size(std::string &filename)
 {
@@ -121,7 +121,7 @@ template<typename samp_type> void recv_to_file(
     std::vector<samp_type> buff(samps_per_buff);
     std::ofstream outfile(file.c_str(), std::ofstream::binary);
     bool overflow_message = true;
-    float timeout = start_time.get_real_secs() + 0.5;
+    float timeout = 0.2;
 
     //setup streaming
     uhd::stream_cmd_t stream_cmd = uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE;
@@ -134,6 +134,9 @@ template<typename samp_type> void recv_to_file(
     md.error_code = uhd::rx_metadata_t::ERROR_CODE_NONE;
     uhd::time_spec_t t0 = usrp->get_time_now();
     while(not stop_signal_called and num_total_samps != num_requested_samples){
+	timeout = 0.2;
+	//std::cout << "num_total_samps: " << num_total_samps << "\n";
+	//std::cout << "num_requested_samples: " << num_requested_samples << "\n";
         size_t num_rx_samps = rx_stream->recv(&buff.front(), buff.size(), md, timeout);
 	t0 = usrp->get_time_now();
         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
@@ -170,8 +173,8 @@ template<typename samp_type> void recv_to_file(
 /***********************************************************************
  * Main function
  **********************************************************************/
-int UHD_SAFE_MAIN(int argc, char *argv[]){
-    uhd::set_thread_priority_safe();
+int main(int argc, char *argv[]){
+    //uhd::set_thread_priority_safe();
 
     //universal variables to be set by po
     std::string ref, otw, type, args;
@@ -276,7 +279,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         long filesize;
         filesize = get_file_size(tx_file);
 	nsamps = filesize / sizeof(otw);
-	nsamps = nsamps * (rx_rate / tx_rate);
+	nsamps = nsamps * (rx_rate / tx_rate) - 30;
 
         //Set a start_time to be used for both transmit and receive usrp devices
         uhd::time_spec_t start_time =  tx_usrp->get_time_now() + .1;
@@ -299,5 +302,5 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         std::cout << "File written to: " << rx_file << std::endl;
         std::cout << std::endl << "Done!" << std::endl << std::endl;
   }
-        return EXIT_SUCCESS;
+        return 0;
 }
