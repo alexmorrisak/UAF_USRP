@@ -33,21 +33,21 @@ rm command_table.txt
 rm sounder_comm.fifo
 
 #Process the raw data file(s), yielding a numpy array output file
-flist=`ls ${OPDIR}/rx.*.dat`
-PROCESS="/home/alex/sounder/process3.py"
-for f in ${flist}; do
-        t=${f%%.dat}
-        t=${t##*rx.}
-        outfile="rx.${t}"
-        echo ${outfile}.dat
-        pwd
-        if [ -s "${OPDIR}/${outfile}.npy" ]; then continue; fi
-        ${PROCESS} -R ${f} -f 400 -n 8192 -O ${outfile}
-done
+#flist=`ls ${OPDIR}/rx.*.dat`
+#PROCESS="/home/alex/sounder/process3.py"
+#for f in ${flist}; do
+#        t=${f%%.dat}
+#        t=${t##*rx.}
+#        outfile="rx.${t}"
+#        echo ${outfile}.dat
+#        pwd
+#        if [ -s "${OPDIR}/${outfile}.npy" ]; then continue; fi
+#        ${PROCESS} -R ${f} -f 400 -n 8192 -O ${outfile}
+#done
 
 #Remove the raw data file(s)
-for f in ${flist}; do
-	rm ${f}
-done
+#for f in ${flist}; do
+#	rm ${f}
+#done
 
 exit
