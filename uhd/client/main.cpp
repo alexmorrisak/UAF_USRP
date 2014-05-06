@@ -1,0 +1,64 @@
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <iostream>
+#include <string>
+#include <fstream>
+#include <string.h>
+
+#include <netinet/in.h> //for sockaddr_in
+#include <arpa/inet.h> //for inet_addr()
+#include <unistd.h> //for close()
+
+#include "global_variables.h"
+
+int main(){
+    int sockfd=0, n=0;
+    int sbuf = 69;
+    struct sockaddr_in serv_addr;
+    struct soundingParms parms;
+    strncpy(parms.txfile,"/home/radar/UAF_USRP/process/tx.dat",80);
+    strncpy(parms.rxfile,"/home/radar/UAF_USRP/uhd/sounder/rx.dat",80);
+    //parms.rxfile = "/home/radar/UAF_USRP/uhd/sounder/rx.dat";
+    parms.nrxsamples = 100;
+    parms.freq = 12e6;
+    parms.txrate = 200e3;
+    parms.rxrate = 200e3;
+    parms.npulses = 512;
+    parms.nsamps_per_pulse = 100;
+    parms.symboltime = 1000;
+    parms.pulsetime = 10;
+
+    printf("\nmsg values\n");
+    printf("txfile: %s\n", parms.txfile);
+    printf("rxfile: %s\n", parms.rxfile);
+    printf("size: %i\n", parms.nrxsamples);
+    printf("freq: %f\n", parms.freq);
+    printf("txrate: %i\n", parms.txrate);
+    printf("rxrate: %i\n", parms.rxrate);
+
+
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+        printf("Error in creating socket\n");
+        return 1;
+    }
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    serv_addr.sin_port = htons(45001);
+
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
+        printf("bind failed\n");
+        return 1;
+    }
+    printf ("connected!\n");
+
+    char usrpmsg = 's';
+    send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
+    send(sockfd, &parms, sizeof(parms), 0);
+    usrpmsg = 'x';
+    send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
+
+    printf("done!\n");
+
+    return 0;
+}

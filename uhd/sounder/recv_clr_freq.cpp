@@ -41,13 +41,14 @@ void recv_clr_freq(
     fftw_plan plan;
     std::vector<double> tmp_pwr(nsamps,0);
     std::vector<double> pwr;
-    pwr.reserve(1e3);
+    pwr.reserve(nsamps);
 
     usrp->set_rx_rate(1e6);
     usrp->set_rx_freq(1e3*(*center_freq));
+    printf("%f\n",*center_freq);
   
     uhd::rx_metadata_t md;
-    std::vector<std::complex<double> > buff(nsamps);
+    std::vector<std::complex<int16_t> > buff(nsamps);
     bool overflow_message = true;
     float timeout = 0.2;
 
@@ -75,29 +76,26 @@ void recv_clr_freq(
         }
     
     if(in!=NULL){free(in);in=NULL;}
-    in =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*1e3);
+    in =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nsamps);
     if(out!=NULL){free(out);out=NULL;}
-    out =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*1e3);
+    out =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nsamps);
 
-    plan = fftw_plan_dft_1d(1e3, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    plan = fftw_plan_dft_1d(nsamps, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 
-    for (int i=0;i<1e3;i++){
+    for (int i=0;i<nsamps;i++){
        //in[i][0] = (hann_window[i]*rx_short_vecs[0][i].real());
        //in[i][1] = (hann_window[i]*rx_short_vecs[0][i].imag());
-       in[i][0] = (int)buff[i].real();
-       in[i][1] = (int)buff[i].imag();
+       in[i][0] = (double)buff[i].real();
+       in[i][1] = (double)buff[i].imag();
     }
 	
     fftw_execute(plan);
 
      //Add the current spectrum to the running total
     //if (num_total_samps != 0){
-     for (int i=0;i<1e2;i++){
-		if (i==0) std::cout << tmp_pwr[0] << std::endl;
-		//if (i==0) std::cout << out[i][0] << std::endl;
-	//printf("i: %i\t %f\n", i, out[i][0]);
+     for (int i=0;i<nsamps;i++){
              tmp_pwr[i] += (out[i][0]*out[i][0] + out[i][1]*out[i][1]) / 
-                     (double)(1e2*1e2*nave);
+                     (double)(nsamps*nsamps*nave);
      }
     //}
      //Done adding spectrum to running total
@@ -109,23 +107,26 @@ void recv_clr_freq(
 
    }
 
+  //for (int i=0;i<nsamps;i++){
+  //  printf("%i, %f\n",i, 10*log(tmp_pwr[i]));
+  //}
   //Center the fft (fftshift)
-  for(int i=0;i<(1e2/2);i++){
-      pwr[1e2/2+i]=tmp_pwr[i];
-      pwr[i]=tmp_pwr[1e2/2+i];
+  for(int i=0;i<(nsamps/2);i++){
+      pwr[nsamps/2+i]=tmp_pwr[i];
+      pwr[i]=tmp_pwr[nsamps/2+i];
   }
   //Done centering
 
   // Now find quietest frequency
-  min_inx = (int) (1e2/2 - bandwidth/2e1);
+  min_inx = (int) (nsamps/2 - bandwidth/2e1);
   std::cout << "start inx: " << min_inx << std::endl;
   std::cout << "bandwidth: " << bandwidth << std::endl;
   int i;
-  for (i = min_inx; i<(1e2/2+bandwidth/2e1); i++){
-  //std::cout << "power " << pwr[i] << pwr[min_inx] << std::endl;
-	if (pwr[i] < pwr[min_inx])
-		min_inx = i;
-	std::cout << *center_freq+(10*min_inx-500) << std::endl;
+  for (i = min_inx; i<(nsamps/2+bandwidth/2e1); i++){
+    printf("%f: %f\n",*center_freq + 10*i-500,log(pwr[i]));
+    if (pwr[i] < pwr[min_inx])
+    	min_inx = i;
+    //std::cout << *center_freq+(10*min_inx-500) << std::endl;
   }
   *center_freq = *center_freq + (10*min_inx-500);
 

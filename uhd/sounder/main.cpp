@@ -4,6 +4,7 @@
 // Adapted from example txrx_loopback_to_file.cpp
 // Alex Morris
 // 06 Dec 2013
+#include <sys/socket.h>
 
 #include <uhd/utils/thread_priority.hpp>
 #include <uhd/utils/safe_main.hpp>
@@ -30,6 +31,11 @@
 
 #include <sounder.hpp>
 
+#include "c_utils.h"
+#include "../client/global_variables.h"
+
+#define HOST_PORT 45001
+
 namespace po = boost::program_options;
 typedef std::complex<int16_t>  sc16;
 
@@ -38,6 +44,8 @@ typedef std::complex<int16_t>  sc16;
  **********************************************************************/
 static bool stop_signal_called = false;
 void sig_int_handler(int){stop_signal_called = true;}
+
+int verbose;
 
 
 /***********************************************************************
@@ -62,51 +70,29 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     //transmit variables
     std::string tx_subdev, tx_file;
     double tx_rate; 
+    unsigned int bufflen;
     boost::thread_group transmit_thread;
 
     //receive variables
     std::string rx_subdev, rx_file;
     size_t nsamps, spb;
     double rx_rate; 
+    unsigned int nave = 1;
 
-    //setup the program options
-    po::options_description desc("Allowed options");
-    desc.add_options()
-        ("help", "help message")
-        ("args", po::value<std::string>(&args)->default_value(""), "uhd device ip address args")
-        ("tx-subdev", po::value<std::string>(&tx_subdev)->default_value("A:A"), "uhd transmit device address")
-        ("rx-subdev", po::value<std::string>(&rx_subdev)->default_value("A:A"), "uhd receive device address")
-        ("tx-file", po::value<std::string>(&tx_file)->default_value("tx.dat"), "name of the file to read binary samples from")
-        ("rx-file", po::value<std::string>(&rx_file)->default_value("rx.dat"), "name of the file to write binary samples to")
-        ("type", po::value<std::string>(&type)->default_value("short"), "host-side sample type: double, float, or short")
-        ("nsamps", po::value<size_t>(&nsamps)->default_value(150000), "total number of samples to receive")
-        ("spb", po::value<size_t>(&spb)->default_value(1000), "host-side memory buffer size")
-        ("tx-rate", po::value<double>(&tx_rate)->default_value(250000), "rate of transmit outgoing samples")
-        ("rx-rate", po::value<double>(&rx_rate)->default_value(250000), "rate of receive incoming samples")
-        ("freq", po::value<double>(&freq), "Transmit and receive RF center frequency in Hz")
-        ("ref", po::value<std::string>(&ref)->default_value("internal"), "clock reference (internal, external, mimo)")
-        ("otw", po::value<std::string>(&otw)->default_value("sc16"), "specify the over-the-wire sample mode")
-    ;
-    po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
-
-    //print the help message
-    if (vm.count("help")){
-        std::cout << boost::format("Sounder: %s") % desc << std::endl;
-        return ~0;
-    }
+    //socket-related variables
+    int sock, msgsock, rval, rfds, efds;
+    int msg;
+    struct soundingParms parms;
+    char usrpmsg;
 
     //create a usrp device
+    args="addr=192.168.10.2";
     uhd::usrp::multi_usrp::sptr usrp = uhd::usrp::multi_usrp::make(args);
 
     //Lock device to the motherboard clock and 
     //then initialize to an arbitrary time
     usrp->set_clock_source("internal");
     usrp->set_time_now(uhd::time_spec_t(0.0)); 
-
-    if (vm.count("tx-subdev")) usrp->set_tx_subdev_spec(tx_subdev);
-    if (vm.count("rx-subdev")) usrp->set_rx_subdev_spec(rx_subdev);
 
     //create a transmit streamer
     uhd::stream_args_t tx_stream_args("sc16", "sc16");
@@ -119,40 +105,53 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     	usrp->get_rx_stream(rx_stream_args);
 
     std::cout << boost::format("Using Device: %s") % usrp->get_pp_string() << std::endl;
+    
     //USRP is initialized;
-    //now execute the tx/rx operations per arguments passed by the FIFO
+    //now execute the tx/rx operations per arguments passed by the tcp socket
+    sock = tcpsocket(HOST_PORT);
+    printf("socket: %i\n",sock);
+    listen(sock,1);
+    rval = 1;
+    printf("Waiting for client connection..\n");
+    msgsock = accept(sock, 0, 0);
+    printf("Listening on socket %i\n", msgsock);
     while(true){
-	//Grab one line of commands from the FIFO
-	std::cout << "Waiting for program options " <<
-		"(tx_file, rx_file, nsamples, freq, tx_rate, rx_rate)...:" <<
-		std::endl;
-	std::getline(std::cin, arg_str);
-	if (arg_str == "EXIT"){
-		std::cout << "Freq string is EXIT.  Quitting program" << std::endl;
-		std::cout << "END: End the process.py why don't you.." << std::endl;
-		return 0;
-	}
-	boost::split(prog_args, arg_str, boost::is_any_of("\t "));
-	tx_file = prog_args[0].c_str();
-	rx_file = prog_args[1].c_str();
-	nsamps = atoi(prog_args[2].c_str());
-	freq = atoi(prog_args[3].c_str());
-	tx_rate = atoi(prog_args[4].c_str());
-	rx_rate = atoi(prog_args[5].c_str());
-	std::cout << "Using options: \n" << 
-		tx_file << "\n" << rx_file << "\n" <<
-		freq << "\n" << tx_rate << "\n" << rx_rate << std::endl;
+        rval = recv_data(msgsock, &usrpmsg, sizeof(usrpmsg));
+        if (usrpmsg == EXIT) {
+            printf("Done sounding; quiting program\n");
+            return 0;
+        }
+        printf("Starting sounding.\n");
 
-	std::cout << "nsamps:" << nsamps << std::endl;
+        rval = recv_data(msgsock, &parms, sizeof(parms));
+        printf("msg values\n");
+        printf("txfile: %s\n", parms.txfile);
+        printf("rxfile: %s\n", parms.rxfile);
+        printf("size: %i\n", parms.nrxsamples);
+        printf("freq: %f\n", parms.freq);
+        printf("txrate: %i\n", parms.txrate);
+        printf("rxrate: %i\n", parms.rxrate);
 
-	//configure the USRP according to the arguments from the FIFO
-	freq /= 1e3; //convert to kHz
-	recv_clr_freq(
-	    usrp,
-	    rx_stream,
-	    &freq,
-	    100);
-	freq *= 1000;
+	    tx_file = parms.txfile;
+	    rx_file = parms.rxfile;
+	    nsamps = parms.nrxsamples;
+	    freq = parms.freq;
+	    tx_rate = parms.txrate;
+	    rx_rate = parms.rxrate;
+	    std::cout << "Using options: \n" << 
+	    	tx_file << "\n" << rx_file << "\n" <<
+	    	freq << "\n" << tx_rate << "\n" << rx_rate << std::endl;
+
+	    std::cout << "nsamps:" << nsamps << std::endl;
+
+	    //configure the USRP according to the arguments from the FIFO
+	    freq /= 1e3; //convert to kHz
+	    recv_clr_freq(
+	        usrp,
+	        rx_stream,
+	        &freq,
+	        100);
+	    freq *= 1000;
         usrp->set_rx_freq(freq);
         usrp->set_tx_freq(freq);
         usrp->set_rx_rate(rx_rate);
@@ -160,16 +159,16 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 	    
         std::cout << boost::format("Actual RX Freq: %f MHz...") % (usrp->get_rx_freq()/1e6) << "\n" << std::endl;
 
-	if (new_seq_flag == 1){
-		std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (tx_rate/1e3) << std::endl;
-		usrp->set_tx_rate(tx_rate);
-		std::cout << boost::format("Actual TX Rate: %f Ksps...") % (usrp->get_tx_rate()/1e3) << std::endl << std::endl;
-		
-		std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (rx_rate/1e3) << std::endl;
-		usrp->set_rx_rate(rx_rate);
-		std::cout << boost::format("Actual RX Rate: %f Ksps...") % (usrp->get_rx_rate()/1e3) << std::endl << std::endl;
-	}
-	new_seq_flag = 0;
+	    if (new_seq_flag == 1){
+	    	std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (tx_rate/1e3) << std::endl;
+	    	usrp->set_tx_rate(tx_rate);
+	    	std::cout << boost::format("Actual TX Rate: %f Ksps...") % (usrp->get_tx_rate()/1e3) << std::endl << std::endl;
+	    	
+	    	std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (rx_rate/1e3) << std::endl;
+	    	usrp->set_rx_rate(rx_rate);
+	    	std::cout << boost::format("Actual RX Rate: %f Ksps...") % (usrp->get_rx_rate()/1e3) << std::endl << std::endl;
+	    }
+	    new_seq_flag = 0;
 
 
         stop_signal_called = false;
@@ -177,37 +176,50 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         //Set a start_time to be used for both transmit and receive usrp devices
         uhd::time_spec_t start_time =  usrp->get_time_now() + .1;
 
+        //printf("symboltime: %i \n", parms.symboltime);
+        bufflen = (unsigned int) (1e-6*(float)parms.symboltime * tx_rate);
+        //printf("bufflen: %i \n", bufflen);
         //call function to spawn thread and transmit from file
         transmit_thread.create_thread(boost::bind(
-		transmit_worker, 
-		usrp, 
-		tx_stream,
-		tx_file,
-		&spb,
-		start_time));
+	    tx_worker, 
+	    usrp, 
+	    tx_stream,
+        bufflen,
+        parms.npulses,
+        parms.pulsetime,
+	    start_time));
+
+        int ptime_eff = floor(1e3*3e8 / (2*MAX_VELOCITY*freq));
+        nave = 1;
+        while(ptime_eff > parms.pulsetime){
+            nave *= 2;
+            ptime_eff /= 2;
+        }
+        printf("nave: %i\n", nave);
 
         //call function to receive to file
-        return_status = recv_to_file(
-		usrp,
-		rx_stream,
-		rx_file,
-		spb,
-		start_time,
-		nsamps);
+        return_status = rx_worker(
+	    usrp,
+	    rx_stream,
+	    rx_file,
+	    parms.nsamps_per_pulse,
+	    parms.npulses,
+	    parms.pulsetime,
+        nave,
+	    start_time);
 
-	if (return_status) std::cerr << "This is a bad record..\n";
-	else{
-	std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
-
-        //Wait for the transmit thread
-        stop_signal_called = true;
-        transmit_thread.join_all();
-
-        //finished
-        std::cout << "File written to: " << rx_file << std::endl;
-        std::cout << std::endl << "Done!" << std::endl << std::endl;
-	}
+	    if (return_status){
+            std::cerr << "This is a bad record..\n";
+            //Do something..?
+        } else
+        {
+	        std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
+            transmit_thread.join_all();
+            //
+            //finished
+            std::cout << "Done! File written to: " << rx_file << std::endl;
+	    }
 	
-  }
-        return EXIT_SUCCESS;
+    }
+    return EXIT_SUCCESS;
 }
