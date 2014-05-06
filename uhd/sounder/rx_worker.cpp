@@ -29,7 +29,7 @@
 int rx_worker(
     uhd::usrp::multi_usrp::sptr usrp,
     uhd::rx_streamer::sptr rx_stream,
-    const std::string &file,
+    std::vector<std::complex<float> *> outdata,
     size_t samps_per_pulse,
     unsigned int npulses,
     unsigned int pulse_time,
@@ -40,8 +40,8 @@ int rx_worker(
 
     uhd::rx_metadata_t md;
     std::vector<std::complex<int16_t> > buff(samps_per_pulse);
-    std::vector<std::complex<int16_t> > fbuff(samps_per_pulse,0);
-    std::ofstream outfile(file.c_str(), std::ofstream::binary);
+    std::vector<std::complex<float> > fbuff(samps_per_pulse,0);
+    //std::ofstream outfile(file.c_str(), std::ofstream::binary);
     bool overflow_message = true;
 
     //setup streaming
@@ -69,7 +69,6 @@ int rx_worker(
                     std::cerr << boost::format(
                         "Got an overflow indication. Please consider the following:\n"
                         "  Your write medium must sustain a rate of %fMB/s.\n"
-                        "  Dropped samples will not be written to the file.\n"
                         "  Please modify this example for your purposes.\n"
                         "  This message will not appear again.\n"
                     ) % (usrp->get_rx_rate()*sizeof(std::complex<short>)/1e6);
@@ -83,13 +82,15 @@ int rx_worker(
             }
 
             for (int k=0; k<samps_per_pulse; k++) // add recent samples to the running total
-                fbuff[k] += buff[k];
+                outdata[i][k] += buff[k];
             stream_cmd.time_spec += 1e-3*float(pulse_time);
         }
-        outfile.write((const char*)&fbuff.front(), fbuff.size()*sizeof(std::complex<int16_t>));
+        //outfile.write((const char*)&fbuff.front(), fbuff.size()*sizeof(std::complex<int16_t>));
     }
+    //for (int i=0; i<samps_per_pulse; i+=10)
+    //    std::cout << i << " " << outdata[0][i] << std::endl;
 
-    outfile.close();
+    //outfile.close();
     return 0;
 }
 

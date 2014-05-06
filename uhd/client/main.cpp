@@ -19,22 +19,22 @@ int main(){
     strncpy(parms.txfile,"/home/radar/UAF_USRP/process/tx.dat",80);
     strncpy(parms.rxfile,"/home/radar/UAF_USRP/uhd/sounder/rx.dat",80);
     //parms.rxfile = "/home/radar/UAF_USRP/uhd/sounder/rx.dat";
-    parms.nrxsamples = 100;
     parms.freq = 12e6;
     parms.txrate = 200e3;
     parms.rxrate = 200e3;
-    parms.npulses = 512;
-    parms.nsamps_per_pulse = 100;
+    parms.npulses = 1024;
     parms.symboltime = 1000;
-    parms.pulsetime = 10;
+    parms.pulsetime = 5;
+    parms.nsamps_per_pulse = (1e-3*parms.pulsetime-1e-6*parms.symboltime)*parms.rxrate;
+    parms.nsamps_per_pulse = (0.90*1e-3*parms.pulsetime)*parms.rxrate;
 
     printf("\nmsg values\n");
     printf("txfile: %s\n", parms.txfile);
     printf("rxfile: %s\n", parms.rxfile);
-    printf("size: %i\n", parms.nrxsamples);
     printf("freq: %f\n", parms.freq);
     printf("txrate: %i\n", parms.txrate);
     printf("rxrate: %i\n", parms.rxrate);
+    printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
 
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){

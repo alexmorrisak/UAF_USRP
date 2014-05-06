@@ -45,7 +45,7 @@ void recv_clr_freq(
 
     usrp->set_rx_rate(1e6);
     usrp->set_rx_freq(1e3*(*center_freq));
-    printf("%f\n",*center_freq);
+    //printf("%f\n",*center_freq);
   
     uhd::rx_metadata_t md;
     std::vector<std::complex<int16_t> > buff(nsamps);
@@ -119,11 +119,11 @@ void recv_clr_freq(
 
   // Now find quietest frequency
   min_inx = (int) (nsamps/2 - bandwidth/2e1);
-  std::cout << "start inx: " << min_inx << std::endl;
-  std::cout << "bandwidth: " << bandwidth << std::endl;
+  //std::cout << "start inx: " << min_inx << std::endl;
+  //std::cout << "bandwidth: " << bandwidth << std::endl;
   int i;
   for (i = min_inx; i<(nsamps/2+bandwidth/2e1); i++){
-    printf("%f: %f\n",*center_freq + 10*i-500,log(pwr[i]));
+    //printf("%f: %f\n",*center_freq + 10*i-500,log(pwr[i]));
     if (pwr[i] < pwr[min_inx])
     	min_inx = i;
     //std::cout << *center_freq+(10*min_inx-500) << std::endl;

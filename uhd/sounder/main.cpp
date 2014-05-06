@@ -75,9 +75,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
     //receive variables
     std::string rx_subdev, rx_file;
-    size_t nsamps, spb;
+    size_t spb;
     double rx_rate; 
     unsigned int nave = 1;
+    std::vector<std::vector<std::complex<float> > > outvecs;
+    std::vector<std::complex<float> *> outvec_ptrs;
 
     //socket-related variables
     int sock, msgsock, rval, rfds, efds;
@@ -127,14 +129,12 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         printf("msg values\n");
         printf("txfile: %s\n", parms.txfile);
         printf("rxfile: %s\n", parms.rxfile);
-        printf("size: %i\n", parms.nrxsamples);
         printf("freq: %f\n", parms.freq);
         printf("txrate: %i\n", parms.txrate);
         printf("rxrate: %i\n", parms.rxrate);
 
 	    tx_file = parms.txfile;
 	    rx_file = parms.rxfile;
-	    nsamps = parms.nrxsamples;
 	    freq = parms.freq;
 	    tx_rate = parms.txrate;
 	    rx_rate = parms.rxrate;
@@ -142,7 +142,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 	    	tx_file << "\n" << rx_file << "\n" <<
 	    	freq << "\n" << tx_rate << "\n" << rx_rate << std::endl;
 
-	    std::cout << "nsamps:" << nsamps << std::endl;
 
 	    //configure the USRP according to the arguments from the FIFO
 	    freq /= 1e3; //convert to kHz
@@ -173,12 +172,35 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
         stop_signal_called = false;
 
+        //prepare tx information
+        bufflen = (unsigned int) (1e-6*(float)parms.symboltime * tx_rate);
+
+        //prepare rx information
+        int ptime_eff = floor(1e3*3e8 / (2*MAX_VELOCITY*freq));
+        printf("ptime_eff: %i\n", ptime_eff);
+        nave = 1;
+        ptime_eff /= 2;
+        while(ptime_eff > parms.pulsetime){
+            nave *= 2;
+            ptime_eff /= 2;
+        }
+        printf("nave: %i\n", nave);
+        ptime_eff = nave*parms.pulsetime;
+        printf("ptime_eff: %i\n", ptime_eff);
+
+        int slowdim = parms.npulses/nave;
+        printf("slowdim: %i\n", slowdim);
+        outvecs.resize(slowdim);
+        outvec_ptrs.resize(slowdim);
+        for (int i=0; i<slowdim; i++){
+            outvecs[i].resize(parms.nsamps_per_pulse,0);
+            outvec_ptrs[i] = &outvecs[i].front();
+        }
+
         //Set a start_time to be used for both transmit and receive usrp devices
         uhd::time_spec_t start_time =  usrp->get_time_now() + .1;
-
-        //printf("symboltime: %i \n", parms.symboltime);
-        bufflen = (unsigned int) (1e-6*(float)parms.symboltime * tx_rate);
-        //printf("bufflen: %i \n", bufflen);
+        
+        std::cout << "starting tx\n";
         //call function to spawn thread and transmit from file
         transmit_thread.create_thread(boost::bind(
 	    tx_worker, 
@@ -189,24 +211,60 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         parms.pulsetime,
 	    start_time));
 
-        int ptime_eff = floor(1e3*3e8 / (2*MAX_VELOCITY*freq));
-        nave = 1;
-        while(ptime_eff > parms.pulsetime){
-            nave *= 2;
-            ptime_eff /= 2;
-        }
-        printf("nave: %i\n", nave);
-
-        //call function to receive to file
+        std::cout << "starting rx\n";
+        //call function to receive to memory buffer
         return_status = rx_worker(
 	    usrp,
 	    rx_stream,
-	    rx_file,
+	    outvec_ptrs,
 	    parms.nsamps_per_pulse,
 	    parms.npulses,
 	    parms.pulsetime,
         nave,
 	    start_time);
+
+        std::cout << "starting lp prep\n";
+        int dmrate = 1;
+        std::vector<std::vector<std::complex<float> > > filtvecs;
+        std::vector<std::complex<float> *> filtvec_ptrs;
+        filtvec_ptrs.resize(slowdim);
+        filtvecs.resize(slowdim);
+        for (int i=0; i<slowdim; i++){
+            filtvecs[i].resize(parms.nsamps_per_pulse/dmrate);
+            filtvec_ptrs[i] = &filtvecs[i].front();
+        }
+
+        std::cout << "starting lp\n";
+        int rval = lp_filter(
+            outvec_ptrs,
+            filtvec_ptrs,
+            slowdim,
+            parms.nsamps_per_pulse,
+            (float) parms.rxrate,
+            10e3,
+            dmrate);
+
+        std::vector<float> fdata;
+        fdata.resize(parms.nsamps_per_pulse/dmrate);
+        rval = doppler_process(
+            filtvec_ptrs,
+            &fdata.front(),
+            slowdim,
+            parms.nsamps_per_pulse/dmrate);
+
+
+
+        //for (int i=0; i<parms.nsamps_per_pulse/dmrate; i+=10){
+        //    printf("%i: ",i);
+        //    for (int j=0; j<slowdim; j++){
+        //        printf("%.1f ",std::abs(filtvec_ptrs[j][i]));
+        //    }
+        //    printf("\n");
+        //}
+
+        for (int i=0; i<parms.nsamps_per_pulse/dmrate; i+=10){
+            printf("%i: %.1f \n",i,fdata[i]);
+        }
 
 	    if (return_status){
             std::cerr << "This is a bad record..\n";
