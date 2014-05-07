@@ -71,6 +71,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     std::string tx_subdev, tx_file;
     double tx_rate; 
     unsigned int bufflen;
+    unsigned int samps_per_sym;
     boost::thread_group transmit_thread;
 
     //receive variables
@@ -145,11 +146,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
 	    //configure the USRP according to the arguments from the FIFO
 	    freq /= 1e3; //convert to kHz
-	    recv_clr_freq(
-	        usrp,
-	        rx_stream,
-	        &freq,
-	        100);
+	    //recv_clr_freq(
+	    //    usrp,
+	    //    rx_stream,
+	    //    &freq,
+	    //    100);
 	    freq *= 1000;
         usrp->set_rx_freq(freq);
         usrp->set_tx_freq(freq);
@@ -172,15 +173,33 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
         stop_signal_called = false;
 
+        float p_code[13] = {1,1,1,1,1,-1,-1,1,1,-1,1,-1,1};
+        int pcodelen =13;
         //prepare tx information
-        bufflen = (unsigned int) (1e-6*(float)parms.symboltime * tx_rate);
+        samps_per_sym = (unsigned int) (1e-6*(float)parms.symboltime * tx_rate);
+        bufflen = pcodelen* samps_per_sym;
+        std::vector<std::complex<int16_t> > tx_buff(bufflen,0);
+        for (int isym=0; isym<pcodelen; isym++){
+            for (int i=0; i<samps_per_sym; i++){
+            tx_buff[isym*samps_per_sym + i] = std::complex<int16_t>(
+                p_code[isym]*0x7ffe, 0x0000);
+            //tx_buff[isym*samps_per_sym+i] = std::complex<int16_t>(
+            //    0x7ffe,0x0000);
+            
+            //printf("tx_buff: (%i, %i)\n", 
+            //    tx_buff[isym*samps_per_sym+i].real(), 
+            //    tx_buff[isym*samps_per_sym+i].imag());
+            }
+        }
+        tx_buff[0] = std::complex<int16_t>(0x7ffe,0x0001);
+        //tx_buff[1] = std::complex<int16_t>(0x0ffe,0x0000);
 
         //prepare rx information
         int ptime_eff = floor(1e3*3e8 / (2*MAX_VELOCITY*freq));
         printf("ptime_eff: %i\n", ptime_eff);
         nave = 1;
         ptime_eff /= 2;
-        while(ptime_eff > parms.pulsetime){
+        while(ptime_eff > parms.pulsetime && parms.npulses/nave > 1){
             nave *= 2;
             ptime_eff /= 2;
         }
@@ -200,18 +219,16 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         //Set a start_time to be used for both transmit and receive usrp devices
         uhd::time_spec_t start_time =  usrp->get_time_now() + .1;
         
-        std::cout << "starting tx\n";
         //call function to spawn thread and transmit from file
-        transmit_thread.create_thread(boost::bind(
-	    tx_worker, 
+        transmit_thread.create_thread(boost::bind(tx_worker, 
 	    usrp, 
 	    tx_stream,
-        bufflen,
+        &tx_buff.front(),
+        tx_buff.size(),
         parms.npulses,
         parms.pulsetime,
 	    start_time));
 
-        std::cout << "starting rx\n";
         //call function to receive to memory buffer
         return_status = rx_worker(
 	    usrp,
@@ -223,8 +240,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         nave,
 	    start_time);
 
-        std::cout << "starting lp prep\n";
-        int dmrate = 1;
+        int dmrate = 1e-6*parms.symboltime * parms.rxrate/ 2; 
+        float bandwidth = 1/(2*1e-6*parms.symboltime);
+        printf("dmrate: %i\n", dmrate);
+        printf("bandwidth: %f\n", bandwidth);
         std::vector<std::vector<std::complex<float> > > filtvecs;
         std::vector<std::complex<float> *> filtvec_ptrs;
         filtvec_ptrs.resize(slowdim);
@@ -234,7 +253,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
             filtvec_ptrs[i] = &filtvecs[i].front();
         }
 
-        std::cout << "starting lp\n";
         int rval = lp_filter(
             outvec_ptrs,
             filtvec_ptrs,
@@ -244,11 +262,32 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
             10e3,
             dmrate);
 
-        std::vector<float> fdata;
-        fdata.resize(parms.nsamps_per_pulse/dmrate);
-        rval = doppler_process(
+        std::vector<std::vector<std::complex<float> > > ffvecs;
+        std::vector<std::complex<float> *> ffvec_ptrs;
+        ffvec_ptrs.resize(slowdim);
+        ffvecs.resize(slowdim);
+        for (int i=0; i<slowdim; i++){
+            ffvecs[i].resize(parms.nsamps_per_pulse/dmrate);
+            ffvec_ptrs[i] = &ffvecs[i].front();
+        }
+        rval = matched_filter(
             filtvec_ptrs,
-            &fdata.front(),
+            ffvec_ptrs,
+            &p_code[0],
+            pcodelen,
+            slowdim,
+            parms.nsamps_per_pulse/dmrate,
+            2);
+
+        //typedef float rrec[2];
+        std::vector<float> fpow;
+        std::vector<float> fvel;
+        fpow.resize(parms.nsamps_per_pulse/dmrate);
+        fvel.resize(parms.nsamps_per_pulse/dmrate);
+        rval = doppler_process(
+            ffvec_ptrs,
+            &fpow.front(),
+            &fvel.front(),
             slowdim,
             parms.nsamps_per_pulse/dmrate);
 
@@ -262,8 +301,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         //    printf("\n");
         //}
 
-        for (int i=0; i<parms.nsamps_per_pulse/dmrate; i+=10){
-            printf("%i: %.1f \n",i,fdata[i]);
+        for (int i=0; i<parms.nsamps_per_pulse/dmrate; i++){
+            printf("%i: %.1f @ %.1f\n",i,20*log10(fpow[i]),fvel[i]);
         }
 
 	    if (return_status){
@@ -275,7 +314,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
             transmit_thread.join_all();
             //
             //finished
-            std::cout << "Done! File written to: " << rx_file << std::endl;
 	    }
 	
     }

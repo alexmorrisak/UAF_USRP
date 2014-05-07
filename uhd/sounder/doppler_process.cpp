@@ -18,7 +18,8 @@
  **********************************************************************/
 int doppler_process(
     std::vector<std::complex<float> *> indata,
-    float *outdata,
+    float* outpow,
+    float* outvel,
     int slowdim,
     int fastdim
 ){
@@ -46,8 +47,12 @@ int doppler_process(
             if ((std::abs(out[i][0])+std::abs(out[i][1])) > 
                 (std::abs(out[mininx][0]) + std::abs(out[mininx][1])))
                     mininx = i;
+            //printf("Mininx: %i / %i\n", mininx, slowdim);
         }
-        outdata[irange] = std::abs(out[mininx][0]) + std::abs(out[mininx][1]);
+        outpow[irange] = std::abs(out[mininx][0]) + std::abs(out[mininx][1]);
+        if (mininx > slowdim/2)
+            mininx = mininx - slowdim;
+        outvel[irange] = (float) mininx;
     }
 
     fftw_destroy_plan(plan);

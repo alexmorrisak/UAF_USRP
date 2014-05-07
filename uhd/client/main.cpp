@@ -22,9 +22,9 @@ int main(){
     parms.freq = 12e6;
     parms.txrate = 200e3;
     parms.rxrate = 200e3;
-    parms.npulses = 1024;
-    parms.symboltime = 1000;
-    parms.pulsetime = 5;
+    parms.npulses = 64;
+    parms.symboltime = 100;
+    parms.pulsetime = 10;
     parms.nsamps_per_pulse = (1e-3*parms.pulsetime-1e-6*parms.symboltime)*parms.rxrate;
     parms.nsamps_per_pulse = (0.90*1e-3*parms.pulsetime)*parms.rxrate;
 
@@ -53,8 +53,11 @@ int main(){
     printf ("connected!\n");
 
     char usrpmsg = 's';
-    send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
-    send(sockfd, &parms, sizeof(parms), 0);
+    for (int i=0; i<1; i++){
+        parms.freq = 1e6+1e5*i;
+        send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
+        send(sockfd, &parms, sizeof(parms), 0);
+    }
     usrpmsg = 'x';
     send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
 

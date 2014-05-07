@@ -1,4 +1,4 @@
-// lp_filter.cpp
+// matched_filter.cpp
 
 #include <iostream>
 #include <string>
@@ -13,32 +13,29 @@
 #include <vector>
 
 /***********************************************************************
- * lp_filter function
+ * matched_filter function
  **********************************************************************/
-int lp_filter(
+int matched_filter(
     std::vector<std::complex<float> *> indata,
     std::vector<std::complex<float> *> outdata,
+    float *pcode,
+    int pcode_length,
     int slowdim,
     int fastdim,
-    float samprate,
-    float bw,
-    int decimrate
+    int osr
 ){
-    float ntaps = 4*samprate/bw;
-    std::cout << "entering lp filter. ntaps: " << ntaps <<std::endl;
+    int ntaps = osr*pcode_length;
+    //std::cout << "entering matched filter. ntaps: " << ntaps <<std::endl;
+    //std::cout << slowdim <<std::endl;
+    //std::cout << fastdim <<std::endl;
     std::vector<std::complex<float> > filter_taps(ntaps);
-    for (int i=0;i<ntaps;i++){
-        double x=2*M_PI*((float)i/ntaps)-M_PI;
-        filter_taps[i] = std::complex<float>(
-            (0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(2*x)/(2*x)/ntaps,
-            0);
-        //filter_taps[i] = std::complex<float>(1./ntaps,0);
+    for (int isym=0;isym<pcode_length;isym++){
+        for (int j=0; j<osr; j++){
+            filter_taps[isym*osr+j] = std::complex<float>(
+                pcode[isym],0);
+            //std::cout << filter_taps[isym*osr+j] << std::endl;
+        }
     }
-    filter_taps[ntaps/2] = std::complex<float>(1./ntaps,0);
-
-    //for (int i=0; i<ntaps; i++){
-    //    printf("%i: (%.2f,%.2f)\n", i, 1e2*filter_taps[i].real(), 1e2*filter_taps[i].imag());
-    //}
 
     //populate the zero-padded temporary vector
     for (int ipulse=0;ipulse<slowdim; ipulse++){
@@ -52,13 +49,12 @@ int lp_filter(
         //}
 
         //perform the convolution
-        for (int isamp =0; isamp<fastdim; isamp+=decimrate){
+        for (int isamp =0; isamp<fastdim; isamp++){
             std::complex<float> temp(0,0);
             for (int i=0; i<ntaps; i++){
                 temp += filter_taps[i]*tempvec[isamp+i];
-                //printf("%i <-> %i\n",i,isamp+i);
             }
-            outdata[ipulse][isamp/decimrate] = temp;
+            outdata[ipulse][isamp] = temp;
             //printf("out %i,%i: %.2f\n",ipulse,isamp,std::abs(outdata[ipulse][isamp]));
         }
     }
@@ -79,7 +75,13 @@ int lp_filter(
 //    float bw = 20;
 //    int dmrate = 1;
 //
-//    invecs[0].resize(nsamps,10.);
+//    invecs[0].resize(nsamps,0.);
+//    //for (int i=0; i<invecs[0].size(); i++){
+//    //    invecs[0][i] = std::complex<float>(3*i,0);
+//    //}
+//    invecs[0][10] = 10;
+//    invecs[0][11] = 10;
+//    invecs[0][12] = -10;
 //    in.resize(nsamps);
 //    in[0] = &invecs[0].front();
 //
@@ -87,14 +89,28 @@ int lp_filter(
 //    out.resize(nsamps);
 //    out[0] = &outvecs[0].front();
 //
-//    int rval = lp_filter(
+//    int pcode_len = 1;
+//    //float pcode[13] = {1,1,1,1,1,-1,-1,1,1,-1,1,-1,1};
+//    //float pcode[3] = {1,1,-1};
+//    float pcode[1] = {1};
+//
+//    //int matched_filter(
+//    //    std::vector<std::complex<float> *> indata,
+//    //    std::vector<std::complex<float> *> outdata,
+//    //    std::vector<float *> pcode,
+//    //    int pcode_length,
+//    //    int slowdim,
+//    //    int fastdim,
+//    //    float osr
+//    //){
+//    int rval = matched_filter(
 //        in,
 //        out,
+//        &pcode[0],
+//        pcode_len,
 //        1,
 //        nsamps,
-//        sr,
-//        bw,
-//        dmrate);
+//        1);
 //
 //    printf("ouputs\n");
 //    for (int i=0; i<nsamps; i++){

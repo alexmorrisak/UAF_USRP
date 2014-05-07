@@ -33,6 +33,7 @@ typedef std::complex<int16_t>  sc16;
 void tx_worker (
     uhd::usrp::multi_usrp::sptr usrp,
     uhd::tx_streamer::sptr tx_stream,
+    std::complex<int16_t>* txbuff,
     size_t bufflen,
     unsigned int npulses,
     unsigned int pulse_time,
@@ -51,9 +52,8 @@ void tx_worker (
    
    //loop for every pulse
    for (int i=0; i<npulses; i++){
-    //std::cout << "start time: " << start_time.get_real_secs() + 0.01*i << std::endl;
-    size_t nsamples = tx_stream->send(&buff.front(), buff.size(), md);
-    //std::cout << "samples sent: " << nsamples << std::endl;
+    size_t nsamples = tx_stream->send(txbuff, bufflen, md);
+    //size_t nsamples = tx_stream->send(&buff.front(), bufflen, md);
     md.time_spec += 1e-3*float(pulse_time);
    }
 }

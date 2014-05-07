@@ -25,6 +25,7 @@ int rx_worker(
 void tx_worker(
     uhd::usrp::multi_usrp::sptr usrp,
     uhd::tx_streamer::sptr tx_stream,
+    std::complex<int16_t>* tx_buff,
     size_t bufflen,
     unsigned int npulses,
     unsigned int pulse_time,
@@ -39,9 +40,19 @@ int lp_filter(
     float bw,
     int decimrate
 );
+int matched_filter(
+    std::vector<std::complex<float> *> indata,
+    std::vector<std::complex<float> *> outdata,
+    float *pcode,
+    int pcode_length,
+    int slowdim,
+    int fastdim,
+    int osr
+);
 int doppler_process(
     std::vector<std::complex<float> *> indata,
-    float *outdata,
+    float* outpow,
+    float* outvel,
     int slowdim,
     int fastdim
 );
