@@ -53,8 +53,8 @@ int main(){
     printf ("connected!\n");
 
     char usrpmsg = 's';
-    for (int i=0; i<1; i++){
-        parms.freq = 1e6+1e5*i;
+    for (int i=0; i<100; i++){
+        parms.freq = 10e6;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         send(sockfd, &parms, sizeof(parms), 0);
     }

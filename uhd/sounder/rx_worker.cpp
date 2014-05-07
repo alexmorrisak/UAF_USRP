@@ -39,7 +39,7 @@ int rx_worker(
     int num_total_samps = 0;
 
     uhd::rx_metadata_t md;
-    std::vector<std::complex<int16_t> > buff(samps_per_pulse);
+    std::vector<std::complex<int16_t> > buff(samps_per_pulse,0);
     std::vector<std::complex<float> > fbuff(samps_per_pulse,0);
     //std::ofstream outfile(file.c_str(), std::ofstream::binary);
     bool overflow_message = true;

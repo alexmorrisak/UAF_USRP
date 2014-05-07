@@ -213,6 +213,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         outvec_ptrs.resize(slowdim);
         for (int i=0; i<slowdim; i++){
             outvecs[i].resize(parms.nsamps_per_pulse,0);
+            outvecs[i].assign(parms.nsamps_per_pulse,0);
             outvec_ptrs[i] = &outvecs[i].front();
         }
 
@@ -240,6 +241,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         nave,
 	    start_time);
 
+	    if (return_status){
+            std::cerr << "This is a bad record..\n";
+            //Do something..?
+        }
+
         int dmrate = 1e-6*parms.symboltime * parms.rxrate/ 2; 
         float bandwidth = 1/(2*1e-6*parms.symboltime);
         printf("dmrate: %i\n", dmrate);
@@ -253,13 +259,14 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
             filtvec_ptrs[i] = &filtvecs[i].front();
         }
 
+
         int rval = lp_filter(
             outvec_ptrs,
             filtvec_ptrs,
             slowdim,
             parms.nsamps_per_pulse,
             (float) parms.rxrate,
-            10e3,
+            bandwidth,
             dmrate);
 
         std::vector<std::vector<std::complex<float> > > ffvecs;
@@ -282,8 +289,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         //typedef float rrec[2];
         std::vector<float> fpow;
         std::vector<float> fvel;
-        fpow.resize(parms.nsamps_per_pulse/dmrate);
-        fvel.resize(parms.nsamps_per_pulse/dmrate);
+        fpow.resize(parms.nsamps_per_pulse/dmrate,0);
+        fvel.resize(parms.nsamps_per_pulse/dmrate,0);
         rval = doppler_process(
             ffvec_ptrs,
             &fpow.front(),
@@ -291,30 +298,15 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
             slowdim,
             parms.nsamps_per_pulse/dmrate);
 
-
-
-        //for (int i=0; i<parms.nsamps_per_pulse/dmrate; i+=10){
-        //    printf("%i: ",i);
-        //    for (int j=0; j<slowdim; j++){
-        //        printf("%.1f ",std::abs(filtvec_ptrs[j][i]));
-        //    }
-        //    printf("\n");
-        //}
-
         for (int i=0; i<parms.nsamps_per_pulse/dmrate; i++){
             printf("%i: %.1f @ %.1f\n",i,20*log10(fpow[i]),fvel[i]);
+            //printf("%i: %.1f @ %.1f\n",i,std::abs(outvec_ptrs[0][i]),fvel[i]);
         }
 
-	    if (return_status){
-            std::cerr << "This is a bad record..\n";
-            //Do something..?
-        } else
-        {
-	        std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
-            transmit_thread.join_all();
-            //
-            //finished
-	    }
+	    std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
+        transmit_thread.join_all();
+        //
+        //finished
 	
     }
     return EXIT_SUCCESS;

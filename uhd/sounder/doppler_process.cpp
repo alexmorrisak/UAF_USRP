@@ -39,6 +39,8 @@ int doppler_process(
         for (int i=0; i<slowdim;i++){
             in[i][0] = indata[i][irange].real();
             in[i][1] = indata[i][irange].imag();
+            out[i][0] = 0.;
+            out[i][1] = 0.;
         }
         fftw_execute(plan);
 
