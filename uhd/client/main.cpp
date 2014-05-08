@@ -4,6 +4,8 @@
 #include <string>
 #include <fstream>
 #include <string.h>
+#include <vector>
+#include <complex>
 
 #include <netinet/in.h> //for sockaddr_in
 #include <arpa/inet.h> //for inet_addr()
@@ -13,24 +15,23 @@
 
 int main(){
     int sockfd=0, n=0;
-    int sbuf = 69;
+    int rval =0, status=0;
     struct sockaddr_in serv_addr;
     struct soundingParms parms;
-    strncpy(parms.txfile,"/home/radar/UAF_USRP/process/tx.dat",80);
-    strncpy(parms.rxfile,"/home/radar/UAF_USRP/uhd/sounder/rx.dat",80);
+    char usrpmsg;
     //parms.rxfile = "/home/radar/UAF_USRP/uhd/sounder/rx.dat";
     parms.freq = 12e6;
     parms.txrate = 200e3;
     parms.rxrate = 200e3;
-    parms.npulses = 64;
-    parms.symboltime = 100;
+    parms.npulses = 128;
+    parms.symboltime = 50;
     parms.pulsetime = 10;
     parms.nsamps_per_pulse = (1e-3*parms.pulsetime-1e-6*parms.symboltime)*parms.rxrate;
-    parms.nsamps_per_pulse = (0.90*1e-3*parms.pulsetime)*parms.rxrate;
+    parms.nsamps_per_pulse = (0.80*1e-3*parms.pulsetime)*parms.rxrate;
+    int datalen;
+    std::vector<float> rxdata;
 
     printf("\nmsg values\n");
-    printf("txfile: %s\n", parms.txfile);
-    printf("rxfile: %s\n", parms.rxfile);
     printf("freq: %f\n", parms.freq);
     printf("txrate: %i\n", parms.txrate);
     printf("rxrate: %i\n", parms.rxrate);
@@ -52,11 +53,30 @@ int main(){
     }
     printf ("connected!\n");
 
-    char usrpmsg = 's';
-    for (int i=0; i<100; i++){
+    for (int i=0; i<1; i++){
         parms.freq = 10e6;
+
+        usrpmsg = 's';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         send(sockfd, &parms, sizeof(parms), 0);
+        rval = recv(sockfd, &status, sizeof(int),0);
+        printf("rx status: %i\n", status);
+
+        usrpmsg = 'p';
+        send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
+        rval = recv(sockfd, &status, sizeof(int),0);
+        printf("process status: %i\n", status);
+
+        usrpmsg = 'd';
+        send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
+        recv(sockfd, &datalen, sizeof(datalen), 0);
+        rxdata.resize(datalen);
+        recv(sockfd, &rxdata.front(), rxdata.size()*sizeof(float), 0);
+        for (size_t i=0; i<rxdata.size(); i++){
+            printf("%i: %.1f\n",i,30+10*log10(rxdata[i]));
+        }
+
+
     }
     usrpmsg = 'x';
     send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);

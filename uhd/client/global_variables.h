@@ -1,9 +1,10 @@
+#define SEND 's'
 #define EXIT 'x'
+#define GET_DATA 'd'
+#define PROCESS 'p'
 #define MAX_VELOCITY 100 //The maximum unambiguous velocity
 
 struct soundingParms{
-    char txfile[80];
-    char rxfile[80];
     float freq;
     unsigned int txrate;
     unsigned int rxrate;

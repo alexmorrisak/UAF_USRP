@@ -39,8 +39,6 @@ int doppler_process(
         for (int i=0; i<slowdim;i++){
             in[i][0] = indata[i][irange].real();
             in[i][1] = indata[i][irange].imag();
-            out[i][0] = 0.;
-            out[i][1] = 0.;
         }
         fftw_execute(plan);
 
@@ -51,7 +49,8 @@ int doppler_process(
                     mininx = i;
             //printf("Mininx: %i / %i\n", mininx, slowdim);
         }
-        outpow[irange] = std::abs(out[mininx][0]) + std::abs(out[mininx][1]);
+        outpow[irange] = 
+            (out[mininx][0]*out[mininx][0] + out[mininx][1]*out[mininx][1]);
         if (mininx > slowdim/2)
             mininx = mininx - slowdim;
         outvel[irange] = (float) mininx;

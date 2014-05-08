@@ -28,16 +28,15 @@ int lp_filter(
     std::cout << "entering lp filter. ntaps: " << ntaps <<std::endl;
     std::vector<std::complex<float> > filter_taps(ntaps);
     for (int i=0;i<ntaps;i++){
-        double x=2*M_PI*((float)i/ntaps)-M_PI;
+        double x=2*(2*M_PI*((float)i/ntaps)-M_PI);
         filter_taps[i] = std::complex<float>(
-            (0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(2*x)/(2*x)/ntaps,
+            bw*(0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(x)/(x)/samprate,
             0);
-        //filter_taps[i] = std::complex<float>(1./ntaps,0);
     }
-    filter_taps[ntaps/2] = std::complex<float>(1./ntaps,0);
+    filter_taps[ntaps/2] = std::complex<float>(bw/samprate,0);
 
     //for (int i=0; i<ntaps; i++){
-    //    printf("%i: (%.2f,%.2f)\n", i, 1e2*filter_taps[i].real(), 1e2*filter_taps[i].imag());
+    //    printf("%i: (%.4f,%.4f)\n", i, filter_taps[i].real(), filter_taps[i].imag());
     //}
 
     //populate the zero-padded temporary vector

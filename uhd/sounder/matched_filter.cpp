@@ -32,7 +32,7 @@ int matched_filter(
     for (int isym=0;isym<pcode_length;isym++){
         for (int j=0; j<osr; j++){
             filter_taps[isym*osr+j] = std::complex<float>(
-                pcode[isym],0);
+                pcode[isym] / std::pow(ntaps,0.5),0);
             //std::cout << filter_taps[isym*osr+j] << std::endl;
         }
     }
