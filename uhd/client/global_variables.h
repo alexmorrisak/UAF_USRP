@@ -4,6 +4,9 @@
 #define PROCESS 'p'
 #define MAX_VELOCITY 100 //The maximum unambiguous velocity
 
+#define BARKER_13 {1.,1.,1.,1.,1.,-1.,-1.,1.,1.,-1.,1.,-1.,1.}
+#define RECT {1.}
+
 struct soundingParms{
     float freq;
     float txrate;
@@ -12,4 +15,5 @@ struct soundingParms{
     unsigned int nsamps_per_pulse;
     float symboltime;
     float pulsetime;
+    char pc_str[80];
 };

@@ -63,9 +63,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     //
     //float p_code[13] = {1,1,1,1,1,-1,-1,1,1,-1,1,-1,1};
     //float p_code[1] = {1};
-    float p_code[3] = {1,1,-1};
+    float *p_code;//[3] = {1,1,-1};
     //float p_code[10] = {0,0,0,1,1,1,1,1,1,1};
-    int pcodelen = 3;
+    //int pcodelen = 3;
+    std::vector<float> pcode;
 
     //status flags
     int new_seq_flag = 1;
@@ -160,6 +161,20 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 printf("freq: %f\n", parms.freq);
                 printf("txrate: %f\n", parms.txrate);
                 printf("rxrate: %f\n", parms.rxrate);
+                std::cout << parms.pc_str << std::endl;
+                if (strcmp(parms.pc_str,"barker13")){
+                   static const int arr[] = BARKER_13;
+                   pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
+                } else if (strcmp(parms.pc_str, "rect")){
+                   static const int arr[] = RECT;
+                   pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
+                } else {
+                   std::cerr << "invalid pulse code requested\n";
+                   return 1;
+                }
+                        
+                        
+                //pcode.assign(parms.pc_vec.begin(), parms.pc_vec.end());
 
 	            freq = parms.freq;
 	            //tx_rate = parms.txrate;
@@ -218,14 +233,14 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 //}
                 
                 //prepare raw tx information
-                bufflen = pcodelen* samps_per_sym;
+                bufflen = pcode.size()* samps_per_sym;
                 //printf("pcodelen: %i\tsamps_per_sym: %i\n", pcodelen,samps_per_sym);
                 tx_raw_buff.resize(bufflen+ntaps,0);
                 //for (int isym=ntaps/2+samps_per_sym/2; isym<pcodelen+ntaps/2+samps_per_sym/2; isym++){
-                for (int isym=0; isym<pcodelen; isym++){
+                for (size_t isym=0; isym<pcode.size(); isym++){
                     //printf("isym: %i %i\n",isym, isym*samps_per_sym + ntaps/2 + samps_per_sym/2);
                     tx_raw_buff[isym*samps_per_sym+ntaps/2 + samps_per_sym/2] = std::complex<float>(
-                        p_code[isym]*15000, 0x0000);
+                        pcode[isym]*15000, 0x0000);
                 }
                 for (int i=0; i<tx_raw_buff.size(); i++){
                     //printf("tx_raw_buff %i: %f, %f\n", i, tx_raw_buff[i].real(), tx_raw_buff[i].imag());
@@ -346,8 +361,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 rval = matched_filter(
                     filtvec_ptrs,
                     ffvec_ptrs,
-                    &p_code[0],
-                    pcodelen,
+                    &pcode.front(),
+                    pcode.size(),
                     slowdim,
                     parms.nsamps_per_pulse/dmrate,
                     2);

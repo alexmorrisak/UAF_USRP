@@ -81,11 +81,10 @@ int main(int argc, char *argv[]){
     parms.npulses = npulses;
     parms.symboltime = 200e-6;
     parms.pulsetime = 10e-3;
+    sprintf(parms.pc_str,"barker13");
     //parms.nsamps_per_pulse = (parms.pulsetime-parms.symboltime)*parms.rxrate;
     parms.nsamps_per_pulse = 4*parms.pulsetime*parms.rxrate/5;
     int datalen;
-
-
 
     printf("\nmsg values\n");
     printf("freq: %04.f kHz\n", parms.freq/1e3);
@@ -114,44 +113,40 @@ int main(int argc, char *argv[]){
     while(parms.freq < 1e3*stop_freq+1){
         //parms.freq = 1e6 + i*100e3;
 
+        /* Perform the sounding */
         usrpmsg = 's';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         send(sockfd, &parms, sizeof(parms), 0);
         rval = recv(sockfd, &status, sizeof(int),0);
         printf("rx status: %i\n", status);
 
+        /* Process the data */
         usrpmsg = 'p';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         rval = recv(sockfd, &status, sizeof(int),0);
         printf("process status: %i\n", status);
 
+        /* Get the data */
         usrpmsg = 'd';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         recv(sockfd, &datalen, sizeof(datalen), 0);
         rxdata.resize(datalen);
         test.resize(datalen,100);
-
-            
-
         recv(sockfd, &rxdata.front(), rxdata.size()*sizeof(float), 0);
 
+        /* Write the data to hdf5 file */
         dims[0] = datalen;
         dims[1] = 1;
         dataspace_id = H5Screate_simple(1, dims, NULL);
-        //printf("dataspace_id: %i\n",dataspace_id);
-        //dset = std::to_string(parms.freq);
-        sprintf(dset, "%05.f",parms.freq/1e3);
-        std::cout << "dset string: " << dset << std::endl;
 
+        sprintf(dset, "%05.f",parms.freq/1e3);
         dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        //printf("dataset_id: %i\n",dataset_id);
-        eval = -1;
+
         eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
             &rxdata.front());
-        //eval =H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-        //    &rxdata.front());
         if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+
         eval =H5Dclose(dataset_id);
         if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
 
@@ -159,13 +154,14 @@ int main(int argc, char *argv[]){
         //    printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
         //}
         parms.freq += 1e3*step_freq;
-
-
     }
+
     eval =H5Sclose(dataspace_id);
     if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
     eval =H5Fclose(file_id);
     if (eval) std::cerr << "Error closing file: " << fname << std::endl;
+
+    /* Close the sounding server */
     usrpmsg = 'x';
     send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
 
