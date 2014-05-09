@@ -25,11 +25,10 @@ int main(){
 
     /* hdf5 variables */
     hid_t file_id, dataspace_id, dataset_id;
-    //herr_t status;
+    herr_t eval;
     hsize_t dims[2];
-    std::string filename = "/tmp/ionosonde_data";
+    std::string filename = "/tmp/ionosonde_data.h5";
     file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    dataspace_id = H5Screate_simple(1, dims, NULL);
     //file_id = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);
 
 
@@ -44,6 +43,7 @@ int main(){
     parms.nsamps_per_pulse = 4*parms.pulsetime*parms.rxrate/5;
     int datalen;
     std::vector<float> rxdata;
+    std::vector<float> test;
 
     printf("\nmsg values\n");
     printf("freq: %f\n", parms.freq);
@@ -85,13 +85,32 @@ int main(){
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         recv(sockfd, &datalen, sizeof(datalen), 0);
         rxdata.resize(datalen);
+        test.resize(datalen,100);
 
-        dims[0] = 2;
-        dims[1] = datalen;
-        dataset_id = H5Dcreate2(file_id, "/sounding", H5T_STD_I32BE, dataspace_id,
-            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+            
 
         recv(sockfd, &rxdata.front(), rxdata.size()*sizeof(float), 0);
+
+        dims[0] = datalen;
+        dims[1] = 1;
+        dataspace_id = H5Screate_simple(1, dims, NULL);
+        printf("dataspace_id: %i\n",dataspace_id);
+        dataset_id = H5Dcreate2(file_id, "/sounding", H5T_IEEE_F32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        printf("dataset_id: %i\n",dataset_id);
+        eval = -1;
+        eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+            &rxdata.front());
+        eval =H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+            &rxdata.front());
+        printf("eval: %i\n",eval);
+        eval =H5Dclose(dataset_id);
+        printf("eval: %i\n",eval);
+        eval =H5Sclose(dataspace_id);
+        printf("eval: %i\n",eval);
+        eval =H5Fclose(file_id);
+        printf("eval: %i\n",eval);
+
         for (size_t i=0; i<rxdata.size(); i++){
             printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
         }
