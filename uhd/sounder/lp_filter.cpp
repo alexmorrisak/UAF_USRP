@@ -41,6 +41,7 @@ int lp_filter(
 
     //populate the zero-padded temporary vector
     for (int ipulse=0;ipulse<slowdim; ipulse++){
+        std::complex<float> DC(0,0);
         std::vector<std::complex<float> > tempvec(fastdim+ntaps,0);
         for (int i=0; i<fastdim; i++){
             tempvec[ntaps/2+i] = indata[ipulse][i];
@@ -58,8 +59,16 @@ int lp_filter(
                 //printf("%i <-> %i\n",i,isamp+i);
             }
             outdata[ipulse][isamp/decimrate] = temp;
+            DC += temp;
             //printf("out %i,%i: %.2f\n",ipulse,isamp,std::abs(outdata[ipulse][isamp]));
         }
+        //Remove the dc offset
+        //DC /= (fastdim);
+        //for (int i=0; i<fastdim/decimrate; i++)
+        //    outdata[ipulse][i] -= DC;
+            
+            
+
     }
 
 

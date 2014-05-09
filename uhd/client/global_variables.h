@@ -6,10 +6,10 @@
 
 struct soundingParms{
     float freq;
-    unsigned int txrate;
-    unsigned int rxrate;
+    float txrate;
+    float rxrate;
     unsigned int npulses;
     unsigned int nsamps_per_pulse;
-    unsigned int symboltime;
-    unsigned int pulsetime;
+    float symboltime;
+    float pulsetime;
 };

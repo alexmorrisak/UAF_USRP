@@ -21,20 +21,20 @@ int main(){
     char usrpmsg;
     //parms.rxfile = "/home/radar/UAF_USRP/uhd/sounder/rx.dat";
     parms.freq = 12e6;
-    parms.txrate = 200e3;
+    parms.txrate = 2000e3;
     parms.rxrate = 200e3;
-    parms.npulses = 128;
-    parms.symboltime = 50;
-    parms.pulsetime = 10;
-    parms.nsamps_per_pulse = (1e-3*parms.pulsetime-1e-6*parms.symboltime)*parms.rxrate;
-    parms.nsamps_per_pulse = (0.80*1e-3*parms.pulsetime)*parms.rxrate;
+    parms.npulses = 256;
+    parms.symboltime = 200e-6;
+    parms.pulsetime = 10e-3;
+    //parms.nsamps_per_pulse = (parms.pulsetime-parms.symboltime)*parms.rxrate;
+    parms.nsamps_per_pulse = 4*parms.pulsetime*parms.rxrate/5;
     int datalen;
     std::vector<float> rxdata;
 
     printf("\nmsg values\n");
     printf("freq: %f\n", parms.freq);
-    printf("txrate: %i\n", parms.txrate);
-    printf("rxrate: %i\n", parms.rxrate);
+    printf("txrate: %f\n", parms.txrate);
+    printf("rxrate: %f\n", parms.rxrate);
     printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
 
 
@@ -54,7 +54,7 @@ int main(){
     printf ("connected!\n");
 
     for (int i=0; i<1; i++){
-        parms.freq = 10e6;
+        parms.freq = 10e6 + i*100e3;
 
         usrpmsg = 's';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);

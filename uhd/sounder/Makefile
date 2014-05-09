@@ -2,7 +2,7 @@ OS:=$(shell uname -s)
 
 CCpp=g++
 CC=gcc
-CFLAGS=-c
+CFLAGS=-c -g
 LFLAGS=-L"${HOME}/uhd/host/build/lib"
 common_libs=-lm -lrt -luhd -lfftw3
 linux_libs=-lboost_thread -lboost_program_options

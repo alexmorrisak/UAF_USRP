@@ -61,7 +61,7 @@ void transceive (
     uhd::tx_streamer::sptr tx_stream,
     uhd::time_spec_t start_time,
     unsigned int npulses,
-    unsigned int pulse_time,
+    float pulse_time,
     std::complex<int16_t>* txbuff,
     size_t bufflen,
     uhd::rx_streamer::sptr rx_stream,

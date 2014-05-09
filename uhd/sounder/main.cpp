@@ -61,19 +61,25 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     double freq;
 
     //
-    float p_code[13] = {1,1,1,1,1,-1,-1,1,1,-1,1,-1,1};
-    int pcodelen =13;
+    //float p_code[13] = {1,1,1,1,1,-1,-1,1,1,-1,1,-1,1};
+    //float p_code[1] = {1};
+    float p_code[3] = {1,1,-1};
+    //float p_code[10] = {0,0,0,1,1,1,1,1,1,1};
+    int pcodelen = 3;
 
     //status flags
     int new_seq_flag = 1;
 
     //transmit variables
     std::string tx_subdev="A:A";
-    double tx_rate; 
     unsigned int bufflen;
     unsigned int samps_per_sym;
     boost::thread_group transmit_thread;
-    std::vector<std::complex<int16_t> > tx_buff(bufflen,0);
+    std::vector<std::complex<float> > tx_raw_buff;
+    std::vector<std::complex<int16_t> > tx_filt_buff;
+    std::vector<std::complex<float> > filter_taps;
+    int ntaps;
+    float txsamprate, txbw;
 
     //receive variables
     std::string rx_subdev="A:A";
@@ -82,7 +88,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     unsigned int nave = 1;
     std::vector<std::vector<std::complex<float> > > outvecs;
     std::vector<std::complex<float> *> outvec_ptrs;
-    int ptime_eff;
+    float ptime_eff;
 
     //data processing variables
     int dmrate, slowdim, fastdim;
@@ -152,14 +158,14 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 rval = recv_data(msgsock, &parms, sizeof(parms));
                 printf("msg values\n");
                 printf("freq: %f\n", parms.freq);
-                printf("txrate: %i\n", parms.txrate);
-                printf("rxrate: %i\n", parms.rxrate);
+                printf("txrate: %f\n", parms.txrate);
+                printf("rxrate: %f\n", parms.rxrate);
 
 	            freq = parms.freq;
-	            tx_rate = parms.txrate;
-	            rx_rate = parms.rxrate;
+	            //tx_rate = parms.txrate;
+	            //rx_rate = parms.rxrate;
 	            std::cout << "Using options: \n" << 
-	            	freq << "\n" << tx_rate << "\n" << rx_rate << std::endl;
+	            	freq << "\n" << parms.txrate << "\n" << rx_rate << std::endl;
 
 
 	            //configure the USRP according to the arguments from the FIFO
@@ -172,18 +178,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 	            freq *= 1000;
                 usrp->set_rx_freq(freq);
                 usrp->set_tx_freq(freq);
-                usrp->set_rx_rate(rx_rate);
-                usrp->set_tx_rate(tx_rate);
+                usrp->set_rx_rate(parms.rxrate);
+                usrp->set_tx_rate(parms.txrate);
 	            
                 std::cout << boost::format("Actual RX Freq: %f MHz...") % (usrp->get_rx_freq()/1e6) << "\n" << std::endl;
 
 	            if (new_seq_flag == 1){
-	            	std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (tx_rate/1e3) << std::endl;
-	            	usrp->set_tx_rate(tx_rate);
+	            	std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (parms.txrate/1e3) << std::endl;
+	            	usrp->set_tx_rate(parms.txrate);
 	            	std::cout << boost::format("Actual TX Rate: %f Ksps...") % (usrp->get_tx_rate()/1e3) << std::endl << std::endl;
 	            	
-	            	std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (rx_rate/1e3) << std::endl;
-	            	usrp->set_rx_rate(rx_rate);
+	            	std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (parms.rxrate/1e3) << std::endl;
+	            	usrp->set_rx_rate(parms.rxrate);
 	            	std::cout << boost::format("Actual RX Rate: %f Ksps...") % (usrp->get_rx_rate()/1e3) << std::endl << std::endl;
 	            }
 	            new_seq_flag = 0;
@@ -191,28 +197,54 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                 stop_signal_called = false;
 
-                //prepare tx information
-                samps_per_sym = (unsigned int) (1e-6*(float)parms.symboltime * tx_rate);
-                bufflen = pcodelen* samps_per_sym;
-                tx_buff.resize(bufflen,0);
-                for (int isym=0; isym<pcodelen; isym++){
-                    for (int i=0; i<samps_per_sym; i++){
-                    tx_buff[isym*samps_per_sym + i] = std::complex<int16_t>(
-                        p_code[isym]*0x7ffe, 0x0000);
-                    //tx_buff[isym*samps_per_sym+i] = std::complex<int16_t>(
-                    //    0x7ffe,0x0000);
-                    
-                    //printf("tx_buff: (%i, %i)\n", 
-                    //    tx_buff[isym*samps_per_sym+i].real(), 
-                    //    tx_buff[isym*samps_per_sym+i].imag());
-                    }
+                //Prepare filter taps
+                samps_per_sym = (unsigned int) (parms.symboltime * parms.txrate);
+                ntaps = 4*samps_per_sym;
+                filter_taps.resize(ntaps,0);
+                txbw = 1/(2*parms.symboltime);
+                txsamprate = usrp->get_tx_rate();
+                for (int i=0; i<ntaps; i++){
+                    double x=2*(2*M_PI*((float)i/ntaps)-M_PI);
+                    filter_taps[i] = std::complex<float>(
+                        //txbw*(0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(x)/(x)/txsamprate,
+                        //0);
+                        1*(0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(x)/(x),
+                        0);
                 }
-                tx_buff[0] = std::complex<int16_t>(0x7ffe,0x0001);
-                //tx_buff[1] = std::complex<int16_t>(0x0ffe,0x0000);
+                filter_taps[ntaps/2] = std::complex<float>(1,0);
+
+                //for (int i=0; i<ntaps; i++){
+                //    printf("filter_taps %i: %f, %f\n", i, filter_taps[i].real(), filter_taps[i].imag());
+                //}
+                
+                //prepare raw tx information
+                bufflen = pcodelen* samps_per_sym;
+                //printf("pcodelen: %i\tsamps_per_sym: %i\n", pcodelen,samps_per_sym);
+                tx_raw_buff.resize(bufflen+ntaps,0);
+                //for (int isym=ntaps/2+samps_per_sym/2; isym<pcodelen+ntaps/2+samps_per_sym/2; isym++){
+                for (int isym=0; isym<pcodelen; isym++){
+                    //printf("isym: %i %i\n",isym, isym*samps_per_sym + ntaps/2 + samps_per_sym/2);
+                    tx_raw_buff[isym*samps_per_sym+ntaps/2 + samps_per_sym/2] = std::complex<float>(
+                        p_code[isym]*15000, 0x0000);
+                }
+                for (int i=0; i<tx_raw_buff.size(); i++){
+                    //printf("tx_raw_buff %i: %f, %f\n", i, tx_raw_buff[i].real(), tx_raw_buff[i].imag());
+                }
+
+                //filter the raw tx vector
+                tx_filt_buff.resize(bufflen,0);
+                for (int i=0; i<bufflen; i++){
+                    std::complex<float> temp(0,0);
+                    for (int j=0; j<ntaps; j++){
+                        temp += filter_taps[j] * tx_raw_buff[i+j];
+                    }
+                    tx_filt_buff[i] = std::complex<int16_t>((int16_t)temp.real(), (int16_t)temp.imag());
+                    //printf("tx_filt_buff %i: %i, %i\n", i, tx_filt_buff[i].real(), tx_filt_buff[i].imag());
+                }
 
                 //prepare rx information
-                ptime_eff = floor(1e3*3e8 / (2*MAX_VELOCITY*freq));
-                printf("ptime_eff: %i\n", ptime_eff);
+                ptime_eff = 3e8 / (2*MAX_VELOCITY*freq);
+                printf("ptime_eff: %f\n", ptime_eff);
                 nave = 1;
                 ptime_eff /= 2;
                 while(ptime_eff > parms.pulsetime && parms.npulses/nave > 1){
@@ -221,7 +253,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 }
                 printf("nave: %i\n", nave);
                 ptime_eff = nave*parms.pulsetime;
-                printf("ptime_eff: %i\n", ptime_eff);
+                printf("ptime_eff: %f\n", ptime_eff);
 
                 slowdim = parms.npulses/nave;
                 printf("slowdim: %i\n", slowdim);
@@ -243,8 +275,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     start_time,
                     parms.npulses,
                     parms.pulsetime,
-                    &tx_buff.front(),
-                    tx_buff.size(),
+                    &tx_filt_buff.front(),
+                    tx_filt_buff.size(),
                     rx_stream,
                     outvec_ptrs,
                     parms.nsamps_per_pulse,
@@ -252,8 +284,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 //transmit_thread.create_thread(boost::bind(tx_worker, 
 	            //usrp, 
 	            //tx_stream,
-                //&tx_buff.front(),
-                //tx_buff.size(),
+                //&tx_raw_buff.front(),
+                //tx_raw_buff.size(),
                 //parms.npulses,
                 //parms.pulsetime,
 	            //start_time));
@@ -282,9 +314,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
             case PROCESS:
                 std::cout << "Starting processing\n";
-                dmrate = 1e-6*parms.symboltime * parms.rxrate/ 2; 
+                dmrate = parms.symboltime * parms.rxrate/ 2; 
                 fastdim = parms.nsamps_per_pulse/dmrate;
-                bandwidth = 1/(2*1e-6*parms.symboltime);
+                bandwidth = 1/(2*parms.symboltime);
                 printf("fastdim: %i\n",fastdim);
                 printf("dmrate: %i\n", dmrate);
                 printf("bandwidth: %f\n", bandwidth);
