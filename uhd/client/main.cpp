@@ -6,19 +6,33 @@
 #include <string.h>
 #include <vector>
 #include <complex>
+#include <string>
 
 #include <netinet/in.h> //for sockaddr_in
 #include <arpa/inet.h> //for inet_addr()
 #include <unistd.h> //for close()
 
 #include "global_variables.h"
+#include "hdf5.h"
 
 int main(){
+    /* Socket and status variables*/
     int sockfd=0, n=0;
     int rval =0, status=0;
     struct sockaddr_in serv_addr;
     struct soundingParms parms;
     char usrpmsg;
+
+    /* hdf5 variables */
+    hid_t file_id, dataspace_id, dataset_id;
+    //herr_t status;
+    hsize_t dims[2];
+    std::string filename = "/tmp/ionosonde_data";
+    file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    dataspace_id = H5Screate_simple(1, dims, NULL);
+    //file_id = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);
+
+
     //parms.rxfile = "/home/radar/UAF_USRP/uhd/sounder/rx.dat";
     parms.freq = 12e6;
     parms.txrate = 2000e3;
@@ -71,9 +85,15 @@ int main(){
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         recv(sockfd, &datalen, sizeof(datalen), 0);
         rxdata.resize(datalen);
+
+        dims[0] = 2;
+        dims[1] = datalen;
+        dataset_id = H5Dcreate2(file_id, "/sounding", H5T_STD_I32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
         recv(sockfd, &rxdata.front(), rxdata.size()*sizeof(float), 0);
         for (size_t i=0; i<rxdata.size(); i++){
-            printf("%i: %.1f\n",i,30+10*log10(rxdata[i]));
+            printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
         }
 
 
