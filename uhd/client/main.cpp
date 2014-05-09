@@ -7,6 +7,7 @@
 #include <vector>
 #include <complex>
 #include <string>
+#include <iostream>
 
 #include <netinet/in.h> //for sockaddr_in
 #include <arpa/inet.h> //for inet_addr()
@@ -22,6 +23,8 @@ int main(){
     struct sockaddr_in serv_addr;
     struct soundingParms parms;
     char usrpmsg;
+    //std::string dset;
+    char dset[80];
 
     /* hdf5 variables */
     hid_t file_id, dataspace_id, dataset_id;
@@ -67,8 +70,8 @@ int main(){
     }
     printf ("connected!\n");
 
-    for (int i=0; i<1; i++){
-        parms.freq = 10e6 + i*100e3;
+    for (int i=0; i<10; i++){
+        parms.freq = 1e6 + i*100e3;
 
         usrpmsg = 's';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
@@ -94,29 +97,33 @@ int main(){
         dims[0] = datalen;
         dims[1] = 1;
         dataspace_id = H5Screate_simple(1, dims, NULL);
-        printf("dataspace_id: %i\n",dataspace_id);
-        dataset_id = H5Dcreate2(file_id, "/sounding", H5T_IEEE_F32BE, dataspace_id,
+        //printf("dataspace_id: %i\n",dataspace_id);
+        //dset = std::to_string(parms.freq);
+        sprintf(dset, "%05.f",parms.freq/1e3);
+        std::cout << "dset string: " << dset << std::endl;
+
+        dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        printf("dataset_id: %i\n",dataset_id);
+        //printf("dataset_id: %i\n",dataset_id);
         eval = -1;
         eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
             &rxdata.front());
-        eval =H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-            &rxdata.front());
+        //eval =H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+        //    &rxdata.front());
         printf("eval: %i\n",eval);
         eval =H5Dclose(dataset_id);
         printf("eval: %i\n",eval);
-        eval =H5Sclose(dataspace_id);
-        printf("eval: %i\n",eval);
-        eval =H5Fclose(file_id);
-        printf("eval: %i\n",eval);
 
-        for (size_t i=0; i<rxdata.size(); i++){
-            printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
-        }
+        //for (size_t i=0; i<rxdata.size(); i++){
+        //    printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
+        //}
 
 
     }
+    eval =H5Sclose(dataspace_id);
+    printf("eval: %i\n",eval);
+    eval =H5Fclose(file_id);
+    printf("eval: %i\n",eval);
     usrpmsg = 'x';
     send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
 
