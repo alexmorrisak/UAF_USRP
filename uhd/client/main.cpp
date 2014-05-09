@@ -13,47 +13,85 @@
 #include <arpa/inet.h> //for inet_addr()
 #include <unistd.h> //for close()
 
+#include <boost/program_options.hpp>
+#include <boost/format.hpp>
+
 #include "global_variables.h"
 #include "hdf5.h"
 
-int main(){
+namespace po = boost::program_options;
+
+int main(int argc, char *argv[]){
     /* Socket and status variables*/
     int sockfd=0, n=0;
     int rval =0, status=0;
     struct sockaddr_in serv_addr;
     struct soundingParms parms;
     char usrpmsg;
-    //std::string dset;
-    char dset[80];
 
-    /* hdf5 variables */
+    /* hdf5 and file-writing variables */
+    char dset[80];
     hid_t file_id, dataspace_id, dataset_id;
     herr_t eval;
     hsize_t dims[2];
-    std::string filename = "/tmp/ionosonde_data.h5";
-    file_id = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    //file_id = H5Fopen(filename, H5F_ACC_RDWR, H5P_DEFAULT);
+    time_t rawtime;
+    struct tm * timeinfo;
+    time(&rawtime);
+    timeinfo = localtime(&rawtime);
+    std::cout << rawtime << std::endl;
+    char fname[80];
+    strftime(fname, 80, "ionogram.%Y%m%d.%H%M.h5",timeinfo);
+    file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
+    //Variables for testing
+    std::vector<float> rxdata;
+    std::vector<float> test;
 
-    //parms.rxfile = "/home/radar/UAF_USRP/uhd/sounder/rx.dat";
-    parms.freq = 12e6;
+    //variables for command line arguments
+    float start_freq;
+    float step_freq;
+    float stop_freq;
+    unsigned int nsteps;
+    unsigned int npulses;
+
+    po::options_description desc("Allowed options");
+    desc.add_options()
+        ("help", "help message")
+        ("start", po::value<float>(&start_freq)->default_value(2e3),
+            "Start frequency of swept-frequency ionogram")
+        ("stop", po::value<float>(&stop_freq)->default_value(2e3),
+            "Stop frequency of swept-frequency ionogram")
+        ("nsteps", po::value<unsigned int>(&nsteps)->default_value(1),
+            "Number of frequencies to step through between start and stop")
+        ("npulses", po::value<unsigned int>(&npulses)->default_value(128),
+            "Number of pulses in a single frequency sounding")
+    ;
+    po::variables_map vm;
+    po::store(po::parse_command_line(argc, argv, desc), vm);
+    po::notify(vm);
+
+    if (vm.count("help")){
+        std::cout << desc << "\n";
+        return 1;
+    }
+            
+    parms.freq = 1e3*start_freq;
     parms.txrate = 2000e3;
     parms.rxrate = 200e3;
-    parms.npulses = 256;
+    parms.npulses = npulses;
     parms.symboltime = 200e-6;
     parms.pulsetime = 10e-3;
     //parms.nsamps_per_pulse = (parms.pulsetime-parms.symboltime)*parms.rxrate;
     parms.nsamps_per_pulse = 4*parms.pulsetime*parms.rxrate/5;
     int datalen;
-    std::vector<float> rxdata;
-    std::vector<float> test;
+
+
 
     printf("\nmsg values\n");
-    printf("freq: %f\n", parms.freq);
-    printf("txrate: %f\n", parms.txrate);
-    printf("rxrate: %f\n", parms.rxrate);
+    printf("freq: %04.f kHz\n", parms.freq/1e3);
+    printf("txrate: %03.f kHz\n", parms.txrate/1e3);
+    printf("rxrate: %03.f kHz\n", parms.rxrate/1e3);
     printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
-
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
         printf("Error in creating socket\n");
@@ -70,8 +108,11 @@ int main(){
     }
     printf ("connected!\n");
 
-    for (int i=0; i<10; i++){
-        parms.freq = 1e6 + i*100e3;
+    step_freq = (stop_freq+1 - start_freq) / nsteps;
+    //for (int i=0; i<10; i++){
+    parms.freq = 1e3*start_freq;
+    while(parms.freq < 1e3*stop_freq+1){
+        //parms.freq = 1e6 + i*100e3;
 
         usrpmsg = 's';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
@@ -110,20 +151,21 @@ int main(){
             &rxdata.front());
         //eval =H5Dread(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
         //    &rxdata.front());
-        printf("eval: %i\n",eval);
+        if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
         eval =H5Dclose(dataset_id);
-        printf("eval: %i\n",eval);
+        if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
 
         //for (size_t i=0; i<rxdata.size(); i++){
         //    printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
         //}
+        parms.freq += 1e3*step_freq;
 
 
     }
     eval =H5Sclose(dataspace_id);
-    printf("eval: %i\n",eval);
+    if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
     eval =H5Fclose(file_id);
-    printf("eval: %i\n",eval);
+    if (eval) std::cerr << "Error closing file: " << fname << std::endl;
     usrpmsg = 'x';
     send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
 
