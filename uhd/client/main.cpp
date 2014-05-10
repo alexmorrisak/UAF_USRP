@@ -75,14 +75,14 @@ int main(int argc, char *argv[]){
     }
             
     parms.freq = 1e3*start_freq;
-    parms.txrate = 2000e3;
+    parms.txrate = 500e3;
     parms.rxrate = 200e3;
     parms.npulses = npulses;
     parms.symboltime = 200e-6;
     parms.pulsetime = 10e-3;
     sprintf(parms.pc_str,"barker13");
     //parms.nsamps_per_pulse = (parms.pulsetime-parms.symboltime)*parms.rxrate;
-    parms.nsamps_per_pulse = 4*parms.pulsetime*parms.rxrate/5;
+    parms.nsamps_per_pulse = 3*parms.pulsetime*parms.rxrate/5;
     int datalen;
 
     printf("\nmsg values\n");

@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 
-f = h5py.File("ionogram.20140509.1150.h5",'r')
+f = h5py.File("ionogram.20140509.2015.h5",'r')
 nfreqs = len(f.keys())
 
 dset = f[f.keys()[0]]

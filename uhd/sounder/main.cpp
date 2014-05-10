@@ -162,15 +162,20 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 printf("txrate: %f\n", parms.txrate);
                 printf("rxrate: %f\n", parms.rxrate);
                 std::cout << parms.pc_str << std::endl;
-                if (strcmp(parms.pc_str,"barker13")){
+                if (strcmp(parms.pc_str,"barker13")==0){
+                    std::cout << "using barker 13 pcode\n";
                    static const int arr[] = BARKER_13;
                    pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
-                } else if (strcmp(parms.pc_str, "rect")){
+                } else if (strcmp(parms.pc_str, "rect")!=0){
+                    std::cout << "using no pcode\n";
                    static const int arr[] = RECT;
                    pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
                 } else {
                    std::cerr << "invalid pulse code requested\n";
                    return 1;
+                }
+                for (int i=0; i<pcode.size(); i++){
+                    std::cout << pcode[i] <<std::endl;
                 }
                         
                         

@@ -46,7 +46,7 @@ void transceive (
     //create metadeta tags for transmit streams
     uhd::tx_metadata_t md;
     md.start_of_burst = true;
-    md.end_of_burst = true;
+    md.end_of_burst = false;
     md.has_time_spec = true;
     md.time_spec = start_time;
     float txon = (float) bufflen / usrp->get_tx_rate();
@@ -72,23 +72,47 @@ void transceive (
     //std::vector<std::complex<int16_t> > buff(bufflen, std::complex<int16_t>(0x0ffe,0x0000));
     //buff[0] = std::complex<int16_t>(0x0fff,0x0001);
    
-   usrp->set_gpio_attr("TXA","CTRL",0x0, 0x4);
-   usrp->set_gpio_attr("TXA","DDR",0x4, 0x4);
+   usrp->set_gpio_attr("TXA","CTRL",0x0, 0x40);
+   usrp->set_gpio_attr("TXA","DDR",0x40, 0x40);
    //loop for every pulse
    for (int i=0; i<npulses/nave; i++){
     rxmd.error_code = uhd::rx_metadata_t::ERROR_CODE_NONE;
     for (int j=0; j<nave; j++){
         float timeout = 1.1;
-        usrp->set_command_time(start_time-10e-6,0);
-        usrp->set_gpio_attr("TXA","OUT",0x4, 0x4);
+        usrp->set_command_time(start_time-50e-6,0);
+        usrp->set_gpio_attr("TXA","OUT",0x40, 0x40);
 
         //size_t nsamples = tx_stream->send(&fbuff.front(), samps_per_pulse/20, md);
-        size_t nsamples = tx_stream->send(vec_ptr, bufflen, md);
+        size_t acc_samps=0;
+        size_t spb;
+        spb = bufflen / 10;
+        //std::cout << "bufflend: " << bufflen <<std::endl;
+        //while (acc_samps < total_samps-bufflen){
+        md.start_of_burst = true;
+        md.has_time_spec = true;
+        vec_ptr[0] = txbuff;
+        for (int k=0;k<10;k++){
+            size_t nsamples = tx_stream->send(vec_ptr, spb, md);
+            vec_ptr[0] += spb;
+            acc_samps += nsamples;
+            //std::cout << acc_samps <<std::endl;
+            md.start_of_burst = false;
+            md.has_time_spec = false;
+        }
+        // Now on the last packet
+        md.end_of_burst = true;
+        spb = bufflen - acc_samps;
+        if (spb != 0){
+            size_t nsamples = tx_stream->send(vec_ptr, spb, md);
+        } else {
+            tx_stream->send("",0,md);
+        }
+
 
         usrp->issue_stream_cmd(stream_cmd);
 
         usrp->set_command_time(start_time+txon+10e-6,0);
-        usrp->set_gpio_attr("TXA","OUT",0x0, 0x4);
+        usrp->set_gpio_attr("TXA","OUT",0x0, 0x40);
 
         size_t nrx_samples = rx_stream->recv(&buff.front(), samps_per_pulse, rxmd, timeout);
         if (rxmd.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE){
@@ -102,7 +126,7 @@ void transceive (
 
         start_time += float(pulse_time);
         md.time_spec = start_time;
-        stream_cmd.time_spec = start_time;
+        stream_cmd.time_spec = start_time+txon;
     }
    }
 }
