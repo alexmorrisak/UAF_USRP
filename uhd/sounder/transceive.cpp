@@ -51,7 +51,11 @@ void transceive (
     md.time_spec = start_time;
     float txon = (float) bufflen / usrp->get_tx_rate();
     std::vector<std::complex<int16_t> *> vec_ptr;
-    vec_ptr.push_back(txbuff);
+    vec_ptr.resize(1);
+    vec_ptr[0] = txbuff;
+
+    usrp->set_gpio_attr("TXA","CTRL",0x0, 0x40);
+    usrp->set_gpio_attr("TXA","DDR",0x40, 0x40);
 
     //for (int i=0; i<bufflen; i++){
     //    printf("tx %i: %i,%i\n",i,txbuff[i].real(), txbuff[i].imag());
@@ -68,13 +72,8 @@ void transceive (
     stream_cmd.stream_now = false;
     stream_cmd.time_spec = start_time+txon;
     std::cout << "time spec: " << stream_cmd.time_spec.get_real_secs() << std::endl;
-
-    //std::vector<std::complex<int16_t> > buff(bufflen, std::complex<int16_t>(0x0ffe,0x0000));
-    //buff[0] = std::complex<int16_t>(0x0fff,0x0001);
    
-   usrp->set_gpio_attr("TXA","CTRL",0x0, 0x40);
-   usrp->set_gpio_attr("TXA","DDR",0x40, 0x40);
-   //loop for every pulse
+   //loop for every pulse in the sequence
    for (int i=0; i<npulses/nave; i++){
     rxmd.error_code = uhd::rx_metadata_t::ERROR_CODE_NONE;
     for (int j=0; j<nave; j++){
@@ -82,16 +81,16 @@ void transceive (
         usrp->set_command_time(start_time-50e-6,0);
         usrp->set_gpio_attr("TXA","OUT",0x40, 0x40);
 
-        //size_t nsamples = tx_stream->send(&fbuff.front(), samps_per_pulse/20, md);
         size_t acc_samps=0;
         size_t spb;
-        spb = bufflen / 10;
+        spb = 100;
         //std::cout << "bufflend: " << bufflen <<std::endl;
         //while (acc_samps < total_samps-bufflen){
         md.start_of_burst = true;
         md.has_time_spec = true;
         vec_ptr[0] = txbuff;
-        for (int k=0;k<10;k++){
+	usrp->issue_stream_cmd(stream_cmd);
+	while(acc_samps < total_samps-bufflen){
             size_t nsamples = tx_stream->send(vec_ptr, spb, md);
             vec_ptr[0] += spb;
             acc_samps += nsamples;
@@ -102,14 +101,7 @@ void transceive (
         // Now on the last packet
         md.end_of_burst = true;
         spb = bufflen - acc_samps;
-        if (spb != 0){
-            size_t nsamples = tx_stream->send(vec_ptr, spb, md);
-        } else {
-            tx_stream->send("",0,md);
-        }
-
-
-        usrp->issue_stream_cmd(stream_cmd);
+        size_t nsamples = tx_stream->send(vec_ptr, spb, md);
 
         usrp->set_command_time(start_time+txon+10e-6,0);
         usrp->set_gpio_attr("TXA","OUT",0x0, 0x40);

@@ -51,6 +51,7 @@ int main(int argc, char *argv[]){
     float stop_freq;
     unsigned int nsteps;
     unsigned int npulses;
+    int ifreq;
 
     po::options_description desc("Allowed options");
     desc.add_options()
@@ -78,11 +79,12 @@ int main(int argc, char *argv[]){
     parms.txrate = 500e3;
     parms.rxrate = 200e3;
     parms.npulses = npulses;
-    parms.symboltime = 200e-6;
-    parms.pulsetime = 10e-3;
+    parms.symboltime = 40e-6;
+    parms.pulsetime = 5e-3;
     sprintf(parms.pc_str,"barker13");
     //parms.nsamps_per_pulse = (parms.pulsetime-parms.symboltime)*parms.rxrate;
-    parms.nsamps_per_pulse = 3*parms.pulsetime*parms.rxrate/5;
+    parms.nsamps_per_pulse = round(3*parms.pulsetime*parms.rxrate)/50;
+    parms.nsamps_per_pulse *= 10;
     int datalen;
 
     printf("\nmsg values\n");
@@ -112,6 +114,7 @@ int main(int argc, char *argv[]){
 
     step_freq = (stop_freq+1 - start_freq) / nsteps;
     parms.freq = 1e3*start_freq;
+    ifreq = 0;
     while(parms.freq < 1e3*stop_freq+1){
         //parms.freq = 1e6 + i*100e3;
 
@@ -160,10 +163,12 @@ int main(int argc, char *argv[]){
             if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
         }
 
+        printf("freq %i of %i (%.0f kHz)\n", ifreq, nsteps, parms.freq/1e3);
         //for (size_t i=0; i<rxdata.size(); i++){
         //    printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
         //}
         parms.freq += 1e3*step_freq;
+	ifreq++;
     }
 
     if (vm.count("write")){

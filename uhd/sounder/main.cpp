@@ -190,11 +190,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
 	            //configure the USRP according to the arguments from the FIFO
 	            freq /= 1e3; //convert to kHz
-	            //recv_clr_freq(
-	            //    usrp,
-	            //    rx_stream,
-	            //    &freq,
-	            //    100);
+	            recv_clr_freq(
+	                usrp,
+	                rx_stream,
+	                &freq,
+	                100);
 	            freq *= 1000;
                 usrp->set_rx_freq(freq);
                 usrp->set_tx_freq(freq);
@@ -334,9 +334,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
             case PROCESS:
                 std::cout << "Starting processing\n";
-                dmrate = parms.symboltime * parms.rxrate/ 2; 
+                dmrate = round(1e3*parms.symboltime * parms.rxrate)/2e3; 
                 fastdim = parms.nsamps_per_pulse/dmrate;
                 bandwidth = 1/(2*parms.symboltime);
+		printf("symbol time: %f\n", parms.symboltime);
                 printf("fastdim: %i\n",fastdim);
                 printf("dmrate: %i\n", dmrate);
                 printf("bandwidth: %f\n", bandwidth);
