@@ -84,13 +84,11 @@ void transceive (
         size_t acc_samps=0;
         size_t spb;
         spb = 100;
-        //std::cout << "bufflend: " << bufflen <<std::endl;
-        //while (acc_samps < total_samps-bufflen){
         md.start_of_burst = true;
         md.has_time_spec = true;
         vec_ptr[0] = txbuff;
 	usrp->issue_stream_cmd(stream_cmd);
-	while(acc_samps < total_samps-bufflen){
+	while(acc_samps < bufflen-spb){
             size_t nsamples = tx_stream->send(vec_ptr, spb, md);
             vec_ptr[0] += spb;
             acc_samps += nsamples;
