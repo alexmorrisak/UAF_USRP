@@ -55,7 +55,9 @@ int matched_filter(
                 temp += filter_taps[i]*tempvec[isamp+i];
             }
             outdata[ipulse][isamp] = temp;
-            //printf("out %i,%i: %.2f\n",ipulse,isamp,std::abs(outdata[ipulse][isamp]));
+            //printf("out %i,%i: %.2f\n",ipulse,isamp,10*log10(std::abs(outdata[ipulse][isamp])));
+            //printf("out %i,%i: (%.1f, %.1f)\n",ipulse,isamp,outdata[ipulse][isamp].real(),
+            //    outdata[ipulse][isamp].imag());
         }
     }
 

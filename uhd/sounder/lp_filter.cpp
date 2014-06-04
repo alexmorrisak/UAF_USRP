@@ -28,9 +28,9 @@ int lp_filter(
     std::cout << "entering lp filter. ntaps: " << ntaps <<std::endl;
     std::vector<std::complex<float> > filter_taps(ntaps);
     for (int i=0;i<ntaps;i++){
-        double x=2*(2*M_PI*((float)i/ntaps)-M_PI);
+        double x=4*(2*M_PI*((float)i/ntaps)-M_PI);
         filter_taps[i] = std::complex<float>(
-            bw*(0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(x)/(x)/samprate,
+            bw/samprate*(0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(x)/x,
             0);
     }
     filter_taps[ntaps/2] = std::complex<float>(bw/samprate,0);
@@ -47,20 +47,23 @@ int lp_filter(
             tempvec[ntaps/2+i] = indata[ipulse][i];
             //printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
         }
-        //for (int i=0; i<fastdim+ntaps; i++){
+        //for (int i=0; i<(fastdim+ntaps)/2; i++){
         //    printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
         //}
 
         //perform the convolution
+        std::complex<float> temp(0,0);
         for (int isamp =0; isamp<fastdim; isamp+=decimrate){
-            std::complex<float> temp(0,0);
+            temp = std::complex<float>(0,0);
             for (int i=0; i<ntaps; i++){
                 temp += filter_taps[i]*tempvec[isamp+i];
                 //printf("%i <-> %i\n",i,isamp+i);
             }
             outdata[ipulse][isamp/decimrate] = temp;
             DC += temp;
-            //printf("out %i,%i: %.2f\n",ipulse,isamp,std::abs(outdata[ipulse][isamp]));
+            //printf("out %i,%i: %.2f\n",ipulse,isamp/decimrate,10*log10(std::abs(outdata[ipulse][isamp/decimrate])));
+            //printf("out %i,%i: (%.1f, %.1f)\n",ipulse,isamp/decimrate,outdata[ipulse][isamp/decimrate].real(),
+            //    outdata[ipulse][isamp/decimrate].imag());
         }
         //Remove the dc offset
         //DC /= (fastdim);

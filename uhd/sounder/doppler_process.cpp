@@ -72,9 +72,10 @@ int doppler_process(
         outpow[irange] = 
             std::abs(doppler_grid[maxinx][irange])*std::abs(doppler_grid[maxinx][irange]);
             //(out[maxinx][0]*out[maxinx][0] + out[maxinx][1]*out[maxinx][1]);
-        for (int j=0; j<slowdim; j++){
-            //printf("outpow %i: %.1f @ %.1f\t",irange, std::abs(doppler_grid[j][irange]), 180/M_PI*std::arg(doppler_grid[j][irange]));
-        }
+        //printf("outpow %i: ", irange);
+        //for (int j=0; j<slowdim; j++){
+        //    printf("%.1f ",irange, std::abs(doppler_grid[j][irange]));
+        //}
         //printf("\n");
         if (maxinx > slowdim/2)
             maxinx = maxinx - slowdim;

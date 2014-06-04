@@ -1,6 +1,6 @@
 OS:=$(shell uname -s)
 
-CCpp=g++
+CCpp=g++ -std=c++0x
 CC=gcc
 CFLAGS=-c -g
 LFLAGS=-L"${HOME}/uhd/host/build/lib"

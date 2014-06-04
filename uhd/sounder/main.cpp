@@ -164,11 +164,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 std::cout << parms.pc_str << std::endl;
                 if (strcmp(parms.pc_str,"barker13")==0){
                     std::cout << "using barker 13 pcode\n";
-                   static const int arr[] = BARKER_13;
+                   static const float arr[] = BARKER_13;
                    pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
                 } else if (strcmp(parms.pc_str, "rect")!=0){
                     std::cout << "using no pcode\n";
-                   static const int arr[] = RECT;
+                   static const float arr[] = RECT;
                    pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
                 } else {
                    std::cerr << "invalid pulse code requested\n";
@@ -224,7 +224,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 txbw = 1/(2*parms.symboltime);
                 txsamprate = usrp->get_tx_rate();
                 for (int i=0; i<ntaps; i++){
-                    double x=2*(2*M_PI*((float)i/ntaps)-M_PI);
+                    double x=4*(2*M_PI*((float)i/ntaps)-M_PI);
                     filter_taps[i] = std::complex<float>(
                         //txbw*(0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(x)/(x)/txsamprate,
                         //0);
