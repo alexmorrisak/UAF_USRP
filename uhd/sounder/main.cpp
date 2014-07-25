@@ -88,7 +88,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     double rx_rate; 
     unsigned int nave = 1;
     std::vector<std::vector<std::complex<float> > > outvecs;
+    std::vector<std::vector<std::complex<float> > > rawvecs;
     std::vector<std::complex<float> *> outvec_ptrs;
+    std::vector<std::complex<float> *> rawvec_ptrs;
     float ptime_eff;
 
     //data processing variables
@@ -279,14 +281,21 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 printf("slowdim: %i\n", slowdim);
                 outvecs.resize(slowdim);
                 outvec_ptrs.resize(slowdim);
+                rawvecs.resize(parms.npulses);
+                rawvec_ptrs.resize(parms.npulses);
                 for (int i=0; i<slowdim; i++){
                     outvecs[i].resize(parms.nsamps_per_pulse,0);
                     outvecs[i].assign(parms.nsamps_per_pulse,0);
                     outvec_ptrs[i] = &outvecs[i].front();
                 }
+                for (int i=0; i<parms.npulses; i++){
+                    rawvecs[i].resize(parms.nsamps_per_pulse);
+                    rawvecs[i].assign(parms.nsamps_per_pulse,0);
+                    rawvec_ptrs[i] = &rawvecs[i].front();
+                }
 
                 //Set a start_time to be used for both transmit and receive usrp devices
-                start_time =  usrp->get_time_now() + .1;
+                start_time =  usrp->get_time_now() + .01;
                 
                 //call function to spawn thread and transmit from file
                 transceive(
@@ -298,28 +307,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     &tx_filt_buff.front(),
                     tx_filt_buff.size(),
                     rx_stream,
-                    outvec_ptrs,
+                    //outvec_ptrs,
+                    rawvec_ptrs,
                     parms.nsamps_per_pulse,
                     nave);
-                //transmit_thread.create_thread(boost::bind(tx_worker, 
-	            //usrp, 
-	            //tx_stream,
-                //&tx_raw_buff.front(),
-                //tx_raw_buff.size(),
-                //parms.npulses,
-                //parms.pulsetime,
-	            //start_time));
 
-                ////call function to receive to memory buffer
-                //return_status = rx_worker(
-	            //usrp,
-	            //rx_stream,
-	            //outvec_ptrs,
-	            //parms.nsamps_per_pulse,
-	            //parms.npulses,
-	            //parms.pulsetime,
-                //nave,
-	            //start_time);
+                for (int i=0; i<slowdim; i++){
+                    for (int j=0; j<nave; j++){
+                        for (int k=0; k<parms.nsamps_per_pulse; k++){
+                            outvecs[i][k] += rawvecs[i*nave+j][k];
+                        }
+                    }
+                }
 
 	            std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
                 transmit_thread.join_all();
@@ -337,7 +336,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 dmrate = round(1e3*parms.symboltime * parms.rxrate)/2e3; 
                 fastdim = parms.nsamps_per_pulse/dmrate;
                 bandwidth = 1/(2*parms.symboltime);
-		printf("symbol time: %f\n", parms.symboltime);
+		        printf("symbol time: %f\n", parms.symboltime);
                 printf("fastdim: %i\n",fastdim);
                 printf("dmrate: %i\n", dmrate);
                 printf("bandwidth: %f\n", bandwidth);

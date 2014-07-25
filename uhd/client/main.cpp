@@ -163,7 +163,7 @@ int main(int argc, char *argv[]){
             if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
         }
 
-        printf("freq %i of %i (%.0f kHz)\n", ifreq, nsteps, parms.freq/1e3);
+        printf("freq %i of %i (%.0f kHz)\n", ifreq+1, nsteps, parms.freq/1e3);
         //for (size_t i=0; i<rxdata.size(); i++){
         //    printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
         //}

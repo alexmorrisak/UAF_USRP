@@ -108,44 +108,44 @@ void transceive (
     std::cout << "time spec: " << stream_cmd.time_spec.get_real_secs() << std::endl;
    
    //loop for every pulse in the sequence
-   for (int i=0; i<npulses/nave; i++){
-    rxmd.error_code = uhd::rx_metadata_t::ERROR_CODE_NONE;
-    for (int j=0; j<nave; j++){
-        float timeout = 1.1;
+   //for (int i=0; i<npulses/nave; i++){
+   size_t spb;
+   spb = tx_stream->get_max_num_samps();
+   for (int i=0; i<npulses; i++){
+       rxmd.error_code = uhd::rx_metadata_t::ERROR_CODE_NONE;
+       float timeout = 1.1;
 
-        usrp->set_command_time(start_time-50e-6,0);
-        usrp->set_gpio_attr("TXA","OUT",0x40, 0x40);
+       usrp->set_command_time(start_time-50e-6,0);
+       usrp->set_gpio_attr("TXA","OUT",0x40, 0x40);
 
-        stream_cmd.time_spec = start_time;
-	    usrp->issue_stream_cmd(stream_cmd);
+       stream_cmd.time_spec = start_time;
+       usrp->issue_stream_cmd(stream_cmd);
 
-        usrp->set_command_time(start_time+txon+10e-6,0);
-        //usrp->set_command_time(start_time+1e-9,0);
-        usrp->set_gpio_attr("TXA","OUT",0x0, 0x40);
+       usrp->set_command_time(start_time+txon+10e-6,0);
+       //usrp->set_command_time(start_time+1e-9,0);
+       usrp->set_gpio_attr("TXA","OUT",0x0, 0x40);
 
-        size_t acc_samps=0;
-        size_t spb;
-        spb = tx_stream->get_max_num_samps();
-        vec_ptr[0] = txbuff;
-        //std::thread tx(tx_worker,
-            //bufflen, 100, tx_stream, start_time, vec_ptr[0]);
-        tx_worker(bufflen, spb, tx_stream, start_time, vec_ptr[0]);
-
-        //tx.join();
-
-        size_t nrx_samples = rx_stream->recv(&buff.front(), samps_per_pulse, rxmd, timeout);
-        if (rxmd.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE){
-            printf("error!\n");
-            std::cout << rxmd.error_code << std::endl;
-            std::cout << uhd::rx_metadata_t::ERROR_CODE_OVERFLOW << std::endl;
-        }
-        for (int k=0; k<samps_per_pulse; k++)
-            outdata[i][k] += buff[k];
+       size_t acc_samps=0;
+       vec_ptr[0] = txbuff;
+       std::thread tx(tx_worker,
+           bufflen, 100, tx_stream, start_time, vec_ptr[0]);
+       //tx_worker(bufflen, spb, tx_stream, start_time, vec_ptr[0]);
 
 
-        start_time += float(pulse_time);
-        //md.time_spec = start_time;
-    }
+       //size_t nrx_samples = rx_stream->recv(&buff.front(), samps_per_pulse, rxmd, timeout);
+       size_t nrx_samples = rx_stream->recv(outdata[i], samps_per_pulse, rxmd, timeout);
+       if (rxmd.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE){
+           printf("error!\n");
+           std::cout << rxmd.error_code << std::endl;
+           std::cout << uhd::rx_metadata_t::ERROR_CODE_OVERFLOW << std::endl;
+       }
+       tx.join();
+       //for (int k=0; k<samps_per_pulse; k++)
+       //    outdata[i][k] += buff[k];
+
+
+       start_time += float(pulse_time);
+       //md.time_spec = start_time;
    //for (int k=0; k<samps_per_pulse; k+=10)
    //    printf("outdata[%i][%i]: %.1f\n", i, k, std::abs(outdata[i][k]));
    }
