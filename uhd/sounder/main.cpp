@@ -45,7 +45,7 @@ typedef std::complex<int16_t>  sc16;
 static bool stop_signal_called = false;
 void sig_int_handler(int){stop_signal_called = true;}
 
-int verbose;
+int verbose = 0;
 
 
 /***********************************************************************
@@ -72,7 +72,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     int new_seq_flag = 1;
 
     //transmit variables
-    std::string tx_subdev="A:A";
+    std::string tx_subdev="A:BA";
     unsigned int bufflen;
     unsigned int samps_per_sym;
     boost::thread_group transmit_thread;
@@ -80,17 +80,17 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     std::vector<std::complex<int16_t> > tx_filt_buff;
     std::vector<std::complex<float> > filter_taps;
     int ntaps;
-    float txsamprate, txbw;
+    float txsamprate, txbw, tx_ontime;
 
     //receive variables
-    std::string rx_subdev="A:A";
+    std::string rx_subdev="A:A A:B";
     size_t spb;
     double rx_rate; 
     unsigned int nave = 1;
     std::vector<std::vector<std::complex<float> > > outvecs;
-    std::vector<std::vector<std::complex<float> > > rawvecs;
+    std::vector<std::vector<std::complex<int16_t> > > rawvecs;
     std::vector<std::complex<float> *> outvec_ptrs;
-    std::vector<std::complex<float> *> rawvec_ptrs;
+    std::vector<std::complex<int16_t> *> rawvec_ptrs;
     float ptime_eff;
 
     //data processing variables
@@ -127,49 +127,55 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     uhd::tx_streamer::sptr tx_stream = 
     	usrp->get_tx_stream(tx_stream_args);
     
-    //create a receive streamer
-    uhd::stream_args_t rx_stream_args("sc16", "sc16");
     usrp->set_rx_subdev_spec(rx_subdev);
+
+    //create a receive streamer
+    if (verbose) std::cout << "number of channels: " << usrp->get_rx_num_channels() << std::endl;
+    uhd::stream_args_t rx_stream_args("sc16", "sc16");
+    for (size_t rx_chan = 0; rx_chan < usrp->get_rx_num_channels(); rx_chan++){
+        rx_stream_args.channels.push_back(rx_chan); //linear mapping
+    }
+
     uhd::rx_streamer::sptr rx_stream = 
     	usrp->get_rx_stream(rx_stream_args);
 
-    std::cout << boost::format("Using Device: %s") % usrp->get_pp_string() << std::endl;
+    if (verbose) std::cout << boost::format("Using Device: %s") % usrp->get_pp_string() << std::endl;
     
     //USRP is initialized;
     //now execute the tx/rx operations per arguments passed by the tcp socket
     sock = tcpsocket(HOST_PORT);
-    printf("socket: %i\n",sock);
+    if (verbose) printf("socket: %i\n",sock);
     listen(sock,1);
     rval = 1;
-    printf("Waiting for client connection..\n");
+    if (verbose) printf("Waiting for client connection..\n");
     msgsock = accept(sock, 0, 0);
-    printf("Listening on socket %i\n", msgsock);
+    if (verbose) printf("Listening on socket %i\n", msgsock);
     std::vector<std::string> banks;
     while(true){
         rval = recv_data(msgsock, &usrpmsg, sizeof(usrpmsg));
         switch (usrpmsg){
             case EXIT:
-                printf("Done sounding; quiting program\n");
+                if (verbose) printf("Done sounding; quiting program\n");
                 //banks = usrp->get_gpio_banks(0);
                 //for (size_t i=0; i<banks.size(); i++){
                 //    std::cout << banks[i] << std::endl;
                 //}
                 return 0;
             case SEND:
-                printf("Starting sounding.\n");
+                if (verbose) printf("Starting sounding.\n");
 
                 rval = recv_data(msgsock, &parms, sizeof(parms));
-                printf("msg values\n");
-                printf("freq: %f\n", parms.freq);
-                printf("txrate: %f\n", parms.txrate);
-                printf("rxrate: %f\n", parms.rxrate);
-                std::cout << parms.pc_str << std::endl;
+                if (verbose) printf("msg values\n");
+                if (verbose) printf("freq: %f\n", parms.freq);
+                if (verbose) printf("txrate: %f\n", parms.txrate);
+                if (verbose) printf("rxrate: %f\n", parms.rxrate);
+                if (verbose) std::cout << parms.pc_str << std::endl;
                 if (strcmp(parms.pc_str,"barker13")==0){
-                    std::cout << "using barker 13 pcode\n";
+                    if (verbose) std::cout << "using barker 13 pcode\n";
                    static const float arr[] = BARKER_13;
                    pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
                 } else if (strcmp(parms.pc_str, "rect")!=0){
-                    std::cout << "using no pcode\n";
+                    if (verbose) std::cout << "using no pcode\n";
                    static const float arr[] = RECT;
                    pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
                 } else {
@@ -177,7 +183,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                    return 1;
                 }
                 for (int i=0; i<pcode.size(); i++){
-                    std::cout << pcode[i] <<std::endl;
+                    if (verbose) std::cout << pcode[i] <<std::endl;
                 }
                         
                         
@@ -186,7 +192,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 	            freq = parms.freq;
 	            //tx_rate = parms.txrate;
 	            //rx_rate = parms.rxrate;
-	            std::cout << "Using options: \n" << 
+	            if (verbose) std::cout << "Using options: \n" << 
 	            	freq << "\n" << parms.txrate << "\n" << rx_rate << std::endl;
 
 
@@ -198,21 +204,23 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 	                &freq,
 	                100);
 	            freq *= 1000;
-                usrp->set_rx_freq(freq);
+                for (size_t i=0; i<usrp->get_rx_num_channels(); i++){
+                    usrp->set_rx_freq(freq,i);
+                }
                 usrp->set_tx_freq(freq);
                 usrp->set_rx_rate(parms.rxrate);
                 usrp->set_tx_rate(parms.txrate);
 	            
-                std::cout << boost::format("Actual RX Freq: %f MHz...") % (usrp->get_rx_freq()/1e6) << "\n" << std::endl;
+                if (verbose) std::cout << boost::format("Actual RX Freq: %f MHz...") % (usrp->get_rx_freq()/1e6) << "\n" << std::endl;
 
 	            if (new_seq_flag == 1){
-	            	std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (parms.txrate/1e3) << std::endl;
+	            	if (verbose) std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (parms.txrate/1e3) << std::endl;
 	            	usrp->set_tx_rate(parms.txrate);
-	            	std::cout << boost::format("Actual TX Rate: %f Ksps...") % (usrp->get_tx_rate()/1e3) << std::endl << std::endl;
+	            	if (verbose) std::cout << boost::format("Actual TX Rate: %f Ksps...") % (usrp->get_tx_rate()/1e3) << std::endl << std::endl;
 	            	
-	            	std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (parms.rxrate/1e3) << std::endl;
+	            	if (verbose) std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (parms.rxrate/1e3) << std::endl;
 	            	usrp->set_rx_rate(parms.rxrate);
-	            	std::cout << boost::format("Actual RX Rate: %f Ksps...") % (usrp->get_rx_rate()/1e3) << std::endl << std::endl;
+	            	if (verbose) std::cout << boost::format("Actual RX Rate: %f Ksps...") % (usrp->get_rx_rate()/1e3) << std::endl << std::endl;
 	            }
 	            new_seq_flag = 0;
 
@@ -264,63 +272,87 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //printf("tx_filt_buff %i: %i, %i\n", i, tx_filt_buff[i].real(), tx_filt_buff[i].imag());
                 }
 
+                tx_ontime = (float) tx_filt_buff.size() / (float) parms.txrate;
+                tx_filt_buff.resize(parms.pulsetime * parms.txrate, 0);
+
                 //prepare rx information
                 ptime_eff = 3e8 / (2*MAX_VELOCITY*freq);
-                printf("ptime_eff: %f\n", ptime_eff);
+                if (verbose) printf("ptime_eff: %f\n", ptime_eff);
                 nave = 1;
                 ptime_eff /= 2;
                 while(ptime_eff > parms.pulsetime && parms.npulses/nave > 1){
                     nave *= 2;
                     ptime_eff /= 2;
                 }
-                printf("nave: %i\n", nave);
+                if (verbose) printf("nave: %i\n", nave);
                 ptime_eff = nave*parms.pulsetime;
-                printf("ptime_eff: %f\n", ptime_eff);
+                if (verbose) printf("ptime_eff: %f\n", ptime_eff);
 
                 slowdim = parms.npulses/nave;
-                printf("slowdim: %i\n", slowdim);
+                if (verbose) printf("slowdim: %i\n", slowdim);
                 outvecs.resize(slowdim);
                 outvec_ptrs.resize(slowdim);
-                rawvecs.resize(parms.npulses);
-                rawvec_ptrs.resize(parms.npulses);
+                rawvecs.resize(usrp->get_rx_num_channels());
+                rawvec_ptrs.resize(usrp->get_rx_num_channels());
+                for (size_t i=0; i<rawvecs.size(); i++){
+                    rawvecs[i].resize(parms.nsamps_per_pulse*parms.npulses);
+                    rawvec_ptrs[i] = &rawvecs[i].front();
+                }
                 for (int i=0; i<slowdim; i++){
                     outvecs[i].resize(parms.nsamps_per_pulse,0);
                     outvecs[i].assign(parms.nsamps_per_pulse,0);
                     outvec_ptrs[i] = &outvecs[i].front();
                 }
-                for (int i=0; i<parms.npulses; i++){
-                    rawvecs[i].resize(parms.nsamps_per_pulse);
-                    rawvecs[i].assign(parms.nsamps_per_pulse,0);
-                    rawvec_ptrs[i] = &rawvecs[i].front();
-                }
+                //for (int i=0; i<2; i++){
+                //    for (int j=0; j<parms.npulses; j++){
+                //        rawvecs[i][j].resize(parms.nsamps_per_pulse);
+                //        rawvecs[i][j].assign(parms.nsamps_per_pulse,0);
+                //        rawvec_ptrs[i][j] = &rawvecs[i][j].front();
+                //    }
+                //}
+                //for (int i=0; i<slowdim; i++){
+                //    for (int j=0; j<nave; j++){
+                //        for (int k=0; k<parms.nsamps_per_pulse; k++){
+                //            if (rawvecs[i*nave+j][k] != std::complex<int16_t>(0,0)) 
+                //                std::cout << rawvecs[i*nave+j][k] << std::endl;
+                //        }
+                //    }
+                //}
 
                 //Set a start_time to be used for both transmit and receive usrp devices
-                start_time =  usrp->get_time_now() + .01;
+                start_time =  usrp->get_time_now() + .05;
                 
                 //call function to spawn thread and transmit from file
                 transceive(
                     usrp,
                     tx_stream,
-                    start_time,
+                    rx_stream,
                     parms.npulses,
                     parms.pulsetime,
-                    &tx_filt_buff.front(),
-                    tx_filt_buff.size(),
-                    rx_stream,
-                    //outvec_ptrs,
-                    rawvec_ptrs,
-                    parms.nsamps_per_pulse,
-                    nave);
+                    &tx_filt_buff,
+                    tx_ontime,
+                    &rawvec_ptrs.front(),
+                    parms.nsamps_per_pulse
+                    );
 
                 for (int i=0; i<slowdim; i++){
                     for (int j=0; j<nave; j++){
                         for (int k=0; k<parms.nsamps_per_pulse; k++){
-                            outvecs[i][k] += rawvecs[i*nave+j][k];
+                            outvecs[i][k] += 
+                                std::complex<int16_t>(1,0) * 
+                                (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
+                                    std::complex<int16_t>(0,-1) * 
+                                    rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
                         }
+                        //if (j == nave-1) {
+                        //    for (int k=0; k<20; k++){
+                        //        std::cout << outvecs[i][k] << "\t" << 20*log10(std::abs(outvecs[i][k])) << std::endl;
+                        //    }
+                        //}
                     }
                 }
 
-	            std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
+	            if (verbose) std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
                 transmit_thread.join_all();
 
 	            if (return_status){
@@ -328,18 +360,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //Do something..?
                 }
                 send(msgsock, &return_status, sizeof(return_status),0);
-                std::cout << "Done rxing\n";
+                if (verbose) std::cout << "Done rxing\n";
                 break;
 
             case PROCESS:
-                std::cout << "Starting processing\n";
+                if (verbose) std::cout << "Starting processing\n";
                 dmrate = round(1e3*parms.symboltime * parms.rxrate)/2e3; 
                 fastdim = parms.nsamps_per_pulse/dmrate;
                 bandwidth = 1/(2*parms.symboltime);
-		        printf("symbol time: %f\n", parms.symboltime);
-                printf("fastdim: %i\n",fastdim);
-                printf("dmrate: %i\n", dmrate);
-                printf("bandwidth: %f\n", bandwidth);
+		        if (verbose) printf("symbol time: %f\n", parms.symboltime);
+                if (verbose) printf("fastdim: %i\n",fastdim);
+                if (verbose) printf("dmrate: %i\n", dmrate);
+                if (verbose) printf("bandwidth: %f\n", bandwidth);
                 filtvec_ptrs.resize(slowdim);
                 filtvecs.resize(slowdim);
                 for (int i=0; i<slowdim; i++){
@@ -402,7 +434,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 break;
 
             default:
-                std::cout << "not a valid usrpmsg.  Exiting.\n";
+                if (verbose) std::cout << "not a valid usrpmsg.  Exiting.\n";
                 return 1;
         }
 	

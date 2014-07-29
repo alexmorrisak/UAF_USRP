@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 
-f = h5py.File("../uhd/client/ionogram.20140523.1114.h5",'r')
+f = h5py.File("/home/radar/UAF_USRP/uhd/client/ionogram.20140729.1201.h5",'r')
 nfreqs = len(f.keys())
 
 dset = f[f.keys()[0]]
@@ -16,7 +16,7 @@ for i in range(0,nfreqs):
     dset.read_direct(arr)
     image[:,i] = arr
 image = np.flipud(10*np.log10(image))
-plt.imshow(image,aspect=0.1)
+plt.imshow(image,interpolation='none',aspect=0.1)
 plt.colorbar()
 plt.show()
     

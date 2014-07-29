@@ -83,8 +83,9 @@ int main(int argc, char *argv[]){
     parms.pulsetime = 5e-3;
     sprintf(parms.pc_str,"barker13");
     //parms.nsamps_per_pulse = (parms.pulsetime-parms.symboltime)*parms.rxrate;
-    parms.nsamps_per_pulse = round(3*parms.pulsetime*parms.rxrate)/50;
-    parms.nsamps_per_pulse *= 10;
+    //parms.nsamps_per_pulse = round(3*parms.pulsetime*parms.rxrate)/50;
+    //parms.nsamps_per_pulse *= 10;
+    parms.nsamps_per_pulse = parms.pulsetime*parms.rxrate;
     int datalen;
 
     printf("\nmsg values\n");

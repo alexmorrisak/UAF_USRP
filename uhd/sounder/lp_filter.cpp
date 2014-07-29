@@ -12,6 +12,8 @@
 #include <fftw3.h>
 #include <vector>
 
+extern int verbose;
+
 /***********************************************************************
  * lp_filter function
  **********************************************************************/
@@ -25,7 +27,7 @@ int lp_filter(
     int decimrate
 ){
     float ntaps = 4*samprate/bw;
-    std::cout << "entering lp filter. ntaps: " << ntaps <<std::endl;
+    if (verbose) std::cout << "entering lp filter. ntaps: " << ntaps <<std::endl;
     std::vector<std::complex<float> > filter_taps(ntaps);
     for (int i=0;i<ntaps;i++){
         double x=4*(2*M_PI*((float)i/ntaps)-M_PI);
