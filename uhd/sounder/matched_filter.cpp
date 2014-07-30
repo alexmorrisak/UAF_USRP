@@ -1,4 +1,4 @@
-// matched_filter.cpp
+// matched_filter2.cpp
 
 #include <iostream>
 #include <string>
@@ -14,11 +14,12 @@
 
 /***********************************************************************
  * matched_filter function
+ * Designed to work with complementary pulse codes
  **********************************************************************/
 int matched_filter(
-    std::vector<std::complex<float> *> indata,
+    std::complex<float>*** indata,
     std::vector<std::complex<float> *> outdata,
-    float *pcode,
+    float** pcode,
     int pcode_length,
     int slowdim,
     int fastdim,
@@ -28,41 +29,54 @@ int matched_filter(
     //std::cout << "entering matched filter. ntaps: " << ntaps <<std::endl;
     //std::cout << slowdim <<std::endl;
     //std::cout << fastdim <<std::endl;
-    std::vector<std::complex<float> > filter_taps(ntaps);
-    for (int isym=0;isym<pcode_length;isym++){
-        for (int j=0; j<osr; j++){
-            filter_taps[isym*osr+j] = std::complex<float>(
-                pcode[isym] / std::pow(ntaps,0.5),0);
-            //std::cout << filter_taps[isym*osr+j] << std::endl;
-        }
+    std::vector<std::complex<float> > filter_taps[2];
+    for (int i=0; i<2; i++){
+        filter_taps[i].resize(ntaps);
     }
-
-    //populate the zero-padded temporary vector
-    for (int ipulse=0;ipulse<slowdim; ipulse++){
-        std::vector<std::complex<float> > tempvec(fastdim+ntaps,0);
-        for (int i=0; i<fastdim; i++){
-            tempvec[ntaps/2+i] = indata[ipulse][i];
-            //printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
-        }
-        //for (int i=0; i<fastdim+ntaps; i++){
-        //    printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
-        //}
-
-        //perform the convolution
-        for (int isamp =0; isamp<fastdim; isamp++){
-            std::complex<float> temp(0,0);
-            for (int i=0; i<ntaps; i++){
-                temp += filter_taps[i]*tempvec[isamp+i];
+    for (int i=0; i<2; i++){
+        for (int isym=0;isym<pcode_length;isym++){ //Create the over-sampled matched filter waveform
+            for (int j=0; j<osr; j++){
+                filter_taps[i][isym*osr+j] = std::complex<float>(
+                    pcode[i][isym] / std::pow(ntaps,0.5),0);
+                //std::cout << filter_taps[isym*osr+j] << std::endl;
             }
-            outdata[ipulse][isamp] = temp;
-            //printf("out %i,%i: %.2f\n",ipulse,isamp,10*log10(std::abs(outdata[ipulse][isamp])));
-            //printf("out %i,%i: (%.1f, %.1f)\n",ipulse,isamp,outdata[ipulse][isamp].real(),
-            //    outdata[ipulse][isamp].imag());
         }
     }
 
+    for (int ipulse=0;ipulse<slowdim; ipulse++){ // Zero the output values
+        for (int isamp=0; isamp<fastdim; isamp++){
+            outdata[ipulse][isamp] = 0;
+        }
+    }
 
+    for (int ipulse=0;ipulse<slowdim; ipulse++){
+        for (int icode=0; icode<2; icode++){
+            std::vector<std::complex<float> > tempvec(fastdim+ntaps,0);
+            //populate the zero-padded version of the input samples
+            for (int i=0; i<fastdim; i++){
+                tempvec[ntaps/2+i] = indata[icode][ipulse][i];
+            }
+            for (int i=0; i<fastdim+ntaps; i++){
+                //printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
+            }
 
+            //perform the convolution
+            for (int isamp=0; isamp<fastdim; isamp++){
+                std::complex<float> temp(0,0);
+                for (int i=0; i<ntaps; i++){
+                    temp += filter_taps[icode][i]*tempvec[isamp+i];
+                }
+                outdata[ipulse][isamp] += temp;
+                //printf("out %i,%i: %.2f\n",ipulse,isamp,10*log10(std::abs(outdata[ipulse][isamp])));
+                //printf("temp %i,%i: %.2f\n",ipulse,isamp,10*log10(std::abs(temp)));
+                //printf("temp %i,%i: %.2f @ %.0f\n",ipulse,isamp,std::abs(temp),180*std::arg(temp)/M_PI);
+                //printf("out %i,%i: %.2f\n",ipulse,isamp,std::abs(outdata[ipulse][isamp]));
+                //printf("out %i,%i: (%.1f, %.1f)\n",ipulse,isamp,outdata[ipulse][isamp].real(),
+                //    outdata[ipulse][isamp].imag());
+                //printf("temp %i,%i: (%.1f, %.1f)\n",ipulse,isamp,temp.real(),temp.imag());
+            }
+        }
+    }
 
     return 0;
 }

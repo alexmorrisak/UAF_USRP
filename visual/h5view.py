@@ -47,8 +47,8 @@ for i in range(0,nfreqs):
 ext = [minfreq, maxfreq, -100, 1.5e5 /options.prf]
 
 image = np.flipud(10*np.log10(image))
-image[np.where(image < 0)] = 0
-image[np.where(image > 20)] = 20
+#image[np.where(image < 0)] = 0
+#image[np.where(image > 20)] = 20
 plt.imshow(image,extent=ext,aspect=0.01,interpolation = "none")
 plt.colorbar()
 plt.show()

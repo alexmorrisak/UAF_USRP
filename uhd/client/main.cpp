@@ -81,7 +81,7 @@ int main(int argc, char *argv[]){
     parms.npulses = npulses;
     parms.symboltime = 40e-6;
     parms.pulsetime = 5e-3;
-    sprintf(parms.pc_str,"barker13");
+    sprintf(parms.pc_str,"golay4");
     //parms.nsamps_per_pulse = (parms.pulsetime-parms.symboltime)*parms.rxrate;
     //parms.nsamps_per_pulse = round(3*parms.pulsetime*parms.rxrate)/50;
     //parms.nsamps_per_pulse *= 10;

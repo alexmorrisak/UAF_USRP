@@ -185,21 +185,33 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 if (verbose) printf("txrate: %f\n", parms.txrate);
                 if (verbose) printf("rxrate: %f\n", parms.rxrate);
                 if (verbose) std::cout << parms.pc_str << std::endl;
-                //if (strcmp(parms.pc_str,"barker13")==0){
-                //    if (verbose) std::cout << "using barker 13 pcode\n";
-                //   static const float arr[] = BARKER_13;
-                //   pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
-                //} else if (strcmp(parms.pc_str, "rect")!=0){
-                //    if (verbose) std::cout << "using no pcode\n";
-                //   static const float arr[] = RECT;
-                //   pcode.assign(arr, arr+sizeof(arr)/sizeof(arr[0]));
-                //} else {
-                //   std::cerr << "invalid pulse code requested\n";
-                //   return 1;
-                //}
-                //for (int i=0; i<pcode.size(); i++){
-                //    if (verbose) std::cout << pcode[i] <<std::endl;
-                //}
+                if (strcmp(parms.pc_str,"barker13") == 0){
+                    if (verbose) std::cout << "using barker 13 pcode\n";
+                    pcode0 = BARKER_13;
+                    pcode1 = BARKER_13;
+                } 
+                else if (strcmp(parms.pc_str, "golay8") == 0){
+                    if (verbose) std::cout << "using golay 8 pcode\n";
+                    pcode0 = GOLAY_8_0;
+                    pcode1 = GOLAY_8_1;
+                }
+                else if (strcmp(parms.pc_str, "golay4") == 0){
+                    if (verbose) std::cout << "using golay 4 pcode\n";
+                    pcode0 = GOLAY_4_0;
+                    pcode1 = GOLAY_4_1;
+                }
+                else if (strcmp(parms.pc_str, "rect") == 0){
+                    if (verbose) std::cout << "using no pcode\n";
+                    pcode0 = RECT;
+                    pcode1 = RECT;
+                }
+                else {
+                    std::cerr << "invalid pulse code requested\n";
+                    return 1;
+                }
+                for (int i=0; i<pcode0.size(); i++){
+                    if (verbose) std::cout << pcode0[i] << " " << pcode1[i] << std::endl;
+                }
                         
 	            freq = parms.freq;
 	            //tx_rate = parms.txrate;
@@ -260,8 +272,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 //}
                 
                 //prepare raw tx information
-                pcode0 = {1.,1.,1.,-1.,1.,1.,-1.,1.};
-                pcode1 = {1.,1.,1.,-1.,-1.,-1.,1.,-1.};
+                //pcode0 = {1.,1.,1.,-1.,1.,1.,-1.,1.};
+                //pcode1 = {1.,1.,1.,-1.,-1.,-1.,1.,-1.};
+                //pcode0 = {1.,1.,1.,1.,1.,-1.,-1.,1.,1.,-1.,1.,-1.,1.};
+                //pcode1 = {1.,1.,1.,1.,1.,-1.,-1.,1.,1.,-1.,1.,-1.,1.};
                 //pcode1 = {0.,0.,0.,1.,1.,1.,0.,0.};
                 pcode_ptrs[0] = &pcode0.front();
                 pcode_ptrs[1] = &pcode1.front();
@@ -343,7 +357,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     outvec_ptrs1[i] = &outvecs1[i].front();
                 }
 
-                transceive2(
+                transceive(
                     usrp,
                     tx_stream,
                     rx_stream,
@@ -355,18 +369,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     &rawvec_ptrs.front(),
                     parms.nsamps_per_pulse
                     );
-                //transceive(
-                //    usrp,
-                //    tx_stream,
-                //    rx_stream,
-                //    parms.npulses,
-                //    parms.pulsetime,
-                //    &tx_filt_buff,
-                //    tx_ontime,
-                //    &rawvec_ptrs.front(),
-                //    parms.nsamps_per_pulse
-                //    );
-
                 //std::cout << "nave: " << nave << std::endl;
                 //for (int i=0; i<slowdim*nave*parms.nsamps_per_pulse; i++){
                 //    std::cerr << i << " " << rawvecs[0][i] << "\t" <<
@@ -411,23 +413,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         //}
                     }
                 }
-
-                //for (int i=0; i<slowdim; i++){
-                //    for (int j=0; j<nave; j++){
-                //        for (int k=0; k<parms.nsamps_per_pulse; k++){
-                //            outvecs[i][k] += 
-                //                std::complex<int16_t>(1,0) * 
-                //                (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
-                //                    std::complex<int16_t>(0,-1) * 
-                //                    rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
-                //        }
-                //        //if (j == nave-1) {
-                //        //    for (int k=0; k<20; k++){
-                //        //        std::cout << outvecs[i][k] << "\t" << 20*log10(std::abs(outvecs[i][k])) << std::endl;
-                //        //    }
-                //        //}
-                //    }
-                //}
 
 	            if (verbose) std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
                 transmit_thread.join_all();
@@ -498,7 +483,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     ffvec_ptrs[i] = &ffvecs[i].front();
                 }
                 
-                rval = matched_filter2(
+                rval = matched_filter(
                     filtvec_dptr,
                     ffvec_ptrs,
                     pcode_ptrs,

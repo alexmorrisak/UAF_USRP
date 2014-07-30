@@ -43,14 +43,15 @@ void rx_worker(
     std::vector<std::complex<int16_t>* >& recv_ptr
 );
 
-void transceive (
+void transceive(
     uhd::usrp::multi_usrp::sptr usrp,
     uhd::tx_streamer::sptr tx_stream,
     uhd::rx_streamer::sptr rx_stream,
     unsigned int npulses,
     float pulse_time,
     //std::complex<int16_t>* txbuff,
-    std::vector<std::complex<int16_t> >* txbuff,
+    std::vector<std::complex<int16_t> >* txbuff0,
+    std::vector<std::complex<int16_t> >* txbuff1,
     float tx_ontime,
     std::complex<int16_t>** outdata,
     size_t samps_per_pulse
@@ -64,15 +65,11 @@ void transceive (
     md.time_spec = start_time;
     std::vector<std::complex<int16_t> *> vec_ptr;
     vec_ptr.resize(1);
-    vec_ptr[0] = &txbuff->front();
-
+    //vec_ptr[0] = &txbuff->front();
+    
     usrp->set_gpio_attr("TXA","CTRL",0x0, 0x60);
     usrp->set_gpio_attr("TXA","DDR",0x60, 0x60);
-
-    //for (int i=0; i<bufflen; i++){
-    //    printf("tx %i: %i,%i\n",i,txbuff[i].real(), txbuff[i].imag());
-    //}
-
+    
     //create metadata tags for receive stream
     uhd::rx_metadata_t rxmd;
     std::vector<std::complex<int16_t> > buff(samps_per_pulse,0);
@@ -82,61 +79,67 @@ void transceive (
     stream_cmd.stream_now = false;
     stream_cmd.time_spec = start_time;//+txon;
     if (verbose) std::cout << "time spec: " << stream_cmd.time_spec.get_real_secs() << std::endl;
-   
-   //loop for every pulse in the sequence
-   size_t spb;
-   std::vector<std::complex<int16_t>* > rx_dptr;
-   rx_dptr.resize(usrp->get_rx_num_channels());
-   spb = tx_stream->get_max_num_samps();
-   if (verbose) std::cout << "npulses: " << npulses << std::endl;
-   boost::thread_group rx_threads;
-   boost::thread_group tx_threads;
-   for (int ipulse=0; ipulse<npulses; ipulse++){
-       for (size_t ichan=0; ichan<usrp->get_rx_num_channels(); ichan++){
-        rx_dptr[ichan] = ipulse*samps_per_pulse + outdata[ichan];
-       }
-
-       float timeout = 1.1;
-
-       usrp->set_command_time(start_time-50e-6,0);
-       usrp->set_gpio_attr("TXA","OUT",0x60, 0x60);
-
-       if (ipulse==0){
-         if (verbose) std::cout << "time spec: " << stream_cmd.time_spec.get_real_secs() << std::endl;
-         if (verbose) std::cout << "Issuing stream command to start collecting samples\n";
-         usrp->issue_stream_cmd(stream_cmd);
-       }
-
-       usrp->set_command_time(start_time+tx_ontime+20e-6,0);
-       usrp->set_gpio_attr("TXA","OUT",0x0, 0x60);
-
-       size_t acc_samps=0;
-       vec_ptr[0] = &txbuff->front();
-       
-       tx_threads.join_all();
-       if (ipulse != npulses-1) {
-            tx_threads.create_thread(boost::bind(tx_worker,
-                txbuff->size(), tx_stream, start_time, vec_ptr[0], 0));
-       }
-       if (ipulse == npulses-1) {
-            tx_threads.create_thread(boost::bind(tx_worker,
-                txbuff->size(), tx_stream, start_time-2e-3, vec_ptr[0], 1));
-       }
-
-       rx_threads.join_all();
-       rx_threads.create_thread(boost::bind(rx_worker,
-        rx_stream, samps_per_pulse, rx_dptr));
-
-       //for (int k=0; k<10; k++){
-       // //std::cout << "raw data: " << outdata[0][i][k] << "\t" << outdata[1][i][k] << std::endl;
-       // std::cout << "raw data: " << rx_dptr[0][k] << " " << rx_dptr[1][k] << std::endl;
-       //}
-       //for (int k=0; k<samps_per_pulse; k++)
-       //    outdata[i][k] += buff[k];
-
-
-       start_time += float(pulse_time);
-   }
+    
+    //loop for every pulse in the sequence
+    size_t spb;
+    std::vector<std::complex<int16_t>* > rx_dptr;
+    rx_dptr.resize(usrp->get_rx_num_channels());
+    spb = tx_stream->get_max_num_samps();
+    if (verbose) std::cout << "npulses: " << npulses << std::endl;
+    boost::thread_group rx_threads;
+    boost::thread_group tx_threads;
+    for (int ipulse=0; ipulse<npulses; ipulse++){
+        for (size_t ichan=0; ichan<usrp->get_rx_num_channels(); ichan++){
+         rx_dptr[ichan] = ipulse*samps_per_pulse + outdata[ichan];
+        }
+        
+        float timeout = 1.1;
+        
+        usrp->set_command_time(start_time-50e-6,0);
+        usrp->set_gpio_attr("TXA","OUT",0x60, 0x60);
+        
+        if (ipulse==0){
+            if (verbose) std::cout << "time spec: " << stream_cmd.time_spec.get_real_secs() << std::endl;
+            if (verbose) std::cout << "Issuing stream command to start collecting samples\n";
+            usrp->issue_stream_cmd(stream_cmd);
+        }
+        
+        usrp->set_command_time(start_time+tx_ontime+20e-6,0);
+        usrp->set_gpio_attr("TXA","OUT",0x0, 0x60);
+        
+        size_t acc_samps=0;
+        if (ipulse%2 == 0) {
+            vec_ptr[0] = &txbuff0->front();
+        }
+        if (ipulse%2 == 1) {
+            vec_ptr[0] = &txbuff1->front();
+        }
+        
+        tx_threads.join_all();
+        if (ipulse != npulses-1) {
+             tx_threads.create_thread(boost::bind(tx_worker,
+                 txbuff0->size(), tx_stream, start_time, vec_ptr[0], 0));
+        }
+        if (ipulse == npulses-1) {
+             tx_threads.create_thread(boost::bind(tx_worker,
+                 txbuff0->size(), tx_stream, start_time-2e-3, vec_ptr[0], 1));
+        }
+        
+        rx_threads.join_all();
+        rx_threads.create_thread(boost::bind(rx_worker,
+         rx_stream, samps_per_pulse, rx_dptr));
+        
+        //for (int k=0; k<10; k++){
+        // //std::cout << "raw data: " << outdata[0][i][k] << "\t" << outdata[1][i][k] << std::endl;
+        // std::cout << "raw data: " << rx_dptr[0][k] << " " << rx_dptr[1][k] << std::endl;
+        //}
+        //for (int k=0; k<samps_per_pulse; k++)
+        //    outdata[i][k] += buff[k];
+        
+        
+        start_time += float(pulse_time);
+    }
+    rx_threads.join_all();
 }
 
 /***********************************************************************

@@ -14,15 +14,6 @@ int lp_filter(
     int decimrate
 );
 int matched_filter(
-    std::vector<std::complex<float> *> indata,
-    std::vector<std::complex<float> *> outdata,
-    float *pcode,
-    int pcode_length,
-    int slowdim,
-    int fastdim,
-    int osr
-);
-int matched_filter2(
     std::complex<float>*** indata,
     std::vector<std::complex<float> *> outdata,
     float** pcode,
@@ -39,18 +30,7 @@ int doppler_process(
     int slowdim,
     int fastdim
 );
-void transceive (
-    uhd::usrp::multi_usrp::sptr usrp,
-    uhd::tx_streamer::sptr tx_stream,
-    uhd::rx_streamer::sptr rx_stream,
-    unsigned int npulses,
-    float pulse_time,
-    std::vector<std::complex<int16_t> >* txbuff,
-    float tx_ontime,
-    std::complex<int16_t>** outdata,
-    size_t samps_per_pulse
-);
-void transceive2(
+void transceive(
     uhd::usrp::multi_usrp::sptr usrp,
     uhd::tx_streamer::sptr tx_stream,
     uhd::rx_streamer::sptr rx_stream,
