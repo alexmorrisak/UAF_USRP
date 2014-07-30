@@ -13,11 +13,11 @@
 
 struct soundingParms{
     float freq;
-    float txrate;
-    float rxrate;
-    unsigned int npulses;
-    unsigned int nsamps_per_pulse;
-    float symboltime;
-    float pulsetime;
+    size_t txrate_khz;
+    size_t rxrate_khz;
+    size_t npulses;
+    size_t nsamps_per_pulse;
+    size_t symboltime_usec;
+    size_t pulsetime_usec;
     char pc_str[80];
 };

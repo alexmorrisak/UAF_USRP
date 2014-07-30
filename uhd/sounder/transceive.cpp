@@ -104,7 +104,7 @@ void transceive(
             usrp->issue_stream_cmd(stream_cmd);
         }
         
-        usrp->set_command_time(start_time+tx_ontime+20e-6,0);
+        usrp->set_command_time(start_time+tx_ontime,0);
         usrp->set_gpio_attr("TXA","OUT",0x0, 0x60);
         
         size_t acc_samps=0;
@@ -122,7 +122,7 @@ void transceive(
         }
         if (ipulse == npulses-1) {
              tx_threads.create_thread(boost::bind(tx_worker,
-                 txbuff0->size(), tx_stream, start_time-2e-3, vec_ptr[0], 1));
+                 txbuff0->size(), tx_stream, start_time, vec_ptr[0], 1));
         }
         
         rx_threads.join_all();

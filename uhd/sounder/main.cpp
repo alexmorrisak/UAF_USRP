@@ -31,7 +31,8 @@
 
 #include <sounder.hpp>
 
-#include "c_utils.h"
+//#include "c_utils.h"
+#include "utils.h"
 #include "../client/global_variables.h"
 
 #define HOST_PORT 45001
@@ -45,7 +46,8 @@ typedef std::complex<int16_t>  sc16;
 static bool stop_signal_called = false;
 void sig_int_handler(int){stop_signal_called = true;}
 
-int verbose = 0;
+int verbose = 1;
+int debug = 0;
 
 
 /***********************************************************************
@@ -85,6 +87,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     std::vector<std::complex<float> > filter_taps;
     int ntaps;
     float txsamprate, txbw, tx_ontime;
+    size_t tx_ontime_usec;
 
     //receive variables
     std::string rx_subdev="A:A A:B";
@@ -182,8 +185,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 rval = recv_data(msgsock, &parms, sizeof(parms));
                 if (verbose) printf("msg values\n");
                 if (verbose) printf("freq: %f\n", parms.freq);
-                if (verbose) printf("txrate: %f\n", parms.txrate);
-                if (verbose) printf("rxrate: %f\n", parms.rxrate);
+                if (verbose) printf("txrate: %i\n", parms.txrate_khz);
+                if (verbose) printf("rxrate: %i\n", parms.rxrate_khz);
                 if (verbose) std::cout << parms.pc_str << std::endl;
                 if (strcmp(parms.pc_str,"barker13") == 0){
                     if (verbose) std::cout << "using barker 13 pcode\n";
@@ -214,10 +217,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 }
                         
 	            freq = parms.freq;
+	            //freq = 1.e3*parms.freq_khz;
 	            //tx_rate = parms.txrate;
 	            //rx_rate = parms.rxrate;
 	            if (verbose) std::cout << "Using options: \n" << 
-	            	freq << "\n" << parms.txrate << "\n" << rx_rate << std::endl;
+	            	freq << "\n" << parms.txrate_khz << "\n" << rx_rate << std::endl;
 
 
 	            //configure the USRP according to the arguments from the FIFO
@@ -232,18 +236,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     usrp->set_rx_freq(freq,i);
                 }
                 usrp->set_tx_freq(freq);
-                usrp->set_rx_rate(parms.rxrate);
-                usrp->set_tx_rate(parms.txrate);
+                usrp->set_rx_rate(1.e3*parms.rxrate_khz);
+                usrp->set_tx_rate(1.e3*parms.txrate_khz);
 	            
                 if (verbose) std::cout << boost::format("Actual RX Freq: %f MHz...") % (usrp->get_rx_freq()/1e6) << "\n" << std::endl;
 
 	            if (new_seq_flag == 1){
-	            	if (verbose) std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (parms.txrate/1e3) << std::endl;
-	            	usrp->set_tx_rate(parms.txrate);
+	            	if (verbose) std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (parms.txrate_khz) << std::endl;
+	            	usrp->set_tx_rate(1.e3*parms.txrate_khz);
 	            	if (verbose) std::cout << boost::format("Actual TX Rate: %f Ksps...") % (usrp->get_tx_rate()/1e3) << std::endl << std::endl;
 	            	
-	            	if (verbose) std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (parms.rxrate/1e3) << std::endl;
-	            	usrp->set_rx_rate(parms.rxrate);
+	            	if (verbose) std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (parms.rxrate_khz) << std::endl;
+	            	usrp->set_rx_rate(1.e3*parms.rxrate_khz);
 	            	if (verbose) std::cout << boost::format("Actual RX Rate: %f Ksps...") % (usrp->get_rx_rate()/1e3) << std::endl << std::endl;
 	            }
 	            new_seq_flag = 0;
@@ -252,13 +256,14 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 stop_signal_called = false;
 
                 //Prepare lp filter taps for filtering the tx samples
-                samps_per_sym = (unsigned int) (parms.symboltime * parms.txrate);
+                //samps_per_sym = (unsigned int) (parms.symboltime * parms.txrate);
+                samps_per_sym = parms.symboltime_usec * parms.txrate_khz / 1000;
                 ntaps = 4*samps_per_sym;
                 filter_taps.resize(ntaps,0);
-                txbw = 1/(2*parms.symboltime);
+                txbw = 1/(2.e-6*parms.symboltime_usec);
                 txsamprate = usrp->get_tx_rate();
                 for (int i=0; i<ntaps; i++){
-                    double x=4*(2*M_PI*((float)i/ntaps)-M_PI);
+                    double x=2*(2*M_PI*((float)i/ntaps)-M_PI);
                     filter_taps[i] = std::complex<float>(
                         //txbw*(0.54-0.46*cos((2*M_PI*((float)(i)+0.5))/ntaps))*sin(x)/(x)/txsamprate,
                         //0);
@@ -267,16 +272,13 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 }
                 filter_taps[ntaps/2] = std::complex<float>(1,0);
 
-                //for (int i=0; i<ntaps; i++){
-                //    printf("filter_taps %i: %f, %f\n", i, filter_taps[i].real(), filter_taps[i].imag());
-                //}
+                if (debug){
+                    for (int i=0; i<ntaps; i++){
+                        printf("filter_taps %i: %f, %f\n", i, filter_taps[i].real(), filter_taps[i].imag());
+                    }
+                }
                 
                 //prepare raw tx information
-                //pcode0 = {1.,1.,1.,-1.,1.,1.,-1.,1.};
-                //pcode1 = {1.,1.,1.,-1.,-1.,-1.,1.,-1.};
-                //pcode0 = {1.,1.,1.,1.,1.,-1.,-1.,1.,1.,-1.,1.,-1.,1.};
-                //pcode1 = {1.,1.,1.,1.,1.,-1.,-1.,1.,1.,-1.,1.,-1.,1.};
-                //pcode1 = {0.,0.,0.,1.,1.,1.,0.,0.};
                 pcode_ptrs[0] = &pcode0.front();
                 pcode_ptrs[1] = &pcode1.front();
 
@@ -309,52 +311,32 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //printf("tx_filt_buff %i: %i, %i\n", i, tx_filt_buff[i].real(), tx_filt_buff[i].imag());
                 }
 
-                tx_ontime = (float) tx_filt_buff0.size() / (float) parms.txrate;
-                tx_filt_buff0.resize(parms.pulsetime * parms.txrate, 0);
-                tx_filt_buff1.resize(parms.pulsetime * parms.txrate, 0);
+                tx_ontime = (float) tx_filt_buff0.size() / (1.e3*parms.txrate_khz) + 100e-6;
+                tx_ontime_usec = tx_filt_buff0.size() / parms.txrate_khz / 1000 + 50;
+                tx_filt_buff0.resize((parms.pulsetime_usec * parms.txrate_khz)/1000, 0);
+                tx_filt_buff1.resize((parms.pulsetime_usec * parms.txrate_khz)/1000, 0);
 
                 //prepare rx information
                 ptime_eff = 3e8 / (2*MAX_VELOCITY*freq);
                 if (verbose) printf("ptime_eff: %f\n", ptime_eff);
                 nave = 2;
                 ptime_eff /= 2;
-                while(ptime_eff > parms.pulsetime && parms.npulses/nave > 1){
+                while(ptime_eff > 1.e-6*parms.pulsetime_usec && parms.npulses/nave > 1){
                     nave *= 2;
                     ptime_eff /= 2;
                 }
                 if (verbose) printf("nave: %i\n", nave);
-                ptime_eff = nave*parms.pulsetime;
-                if (verbose) printf("ptime_eff: %f\n", ptime_eff);
+                ptime_eff = nave*parms.pulsetime_usec;
+                if (verbose) printf("ptime_eff: %i usec\n", ptime_eff);
 
                 slowdim = parms.npulses/nave;
                 if (verbose) printf("slowdim: %i\n", slowdim);
 
-                //for (int i=0; i<2; i++){
-                //    outvecs2[i].resize(slowdim);
-                //    for (int j=0; j<slowdim; j++){
-                //        outvecs2[i][j].resize(parms.nsamps_per_pulse);
-                //    }
-                //}
-                //outvecs.resize(slowdim);
-                outvecs0.resize(slowdim);
-                outvecs1.resize(slowdim);
-                //outvec_ptrs.resize(slowdim);
-                outvec_ptrs0.resize(slowdim);
-                outvec_ptrs1.resize(slowdim);
                 rawvecs.resize(usrp->get_rx_num_channels());
                 rawvec_ptrs.resize(usrp->get_rx_num_channels());
                 for (size_t i=0; i<rawvecs.size(); i++){
                     rawvecs[i].resize(parms.nsamps_per_pulse*parms.npulses);
                     rawvec_ptrs[i] = &rawvecs[i].front();
-                }
-                for (int i=0; i<slowdim; i++){
-                    //outvecs[i].resize(parms.nsamps_per_pulse,0);
-                    outvecs0[i].resize(parms.nsamps_per_pulse,0);
-                    outvecs1[i].resize(parms.nsamps_per_pulse,0);
-                    //outvecs[i].assign(parms.nsamps_per_pulse,0);
-                    //outvec_ptrs[i] = &outvecs[i].front();
-                    outvec_ptrs0[i] = &outvecs0[i].front();
-                    outvec_ptrs1[i] = &outvecs1[i].front();
                 }
 
                 transceive(
@@ -362,13 +344,24 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     tx_stream,
                     rx_stream,
                     parms.npulses,
-                    parms.pulsetime,
+                    1.e-6*parms.pulsetime_usec,
                     &tx_filt_buff0,
                     &tx_filt_buff1,
                     tx_ontime,
                     &rawvec_ptrs.front(),
                     parms.nsamps_per_pulse
                     );
+
+                outvecs0.resize(slowdim);
+                outvecs1.resize(slowdim);
+                outvec_ptrs0.resize(slowdim);
+                outvec_ptrs1.resize(slowdim);
+                for (int i=0; i<slowdim; i++){
+                    outvecs0[i].resize(parms.nsamps_per_pulse,0);
+                    outvecs1[i].resize(parms.nsamps_per_pulse,0);
+                    outvec_ptrs0[i] = &outvecs0[i].front();
+                    outvec_ptrs1[i] = &outvecs1[i].front();
+                }
                 //std::cout << "nave: " << nave << std::endl;
                 //for (int i=0; i<slowdim*nave*parms.nsamps_per_pulse; i++){
                 //    std::cerr << i << " " << rawvecs[0][i] << "\t" <<
@@ -427,10 +420,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
             case PROCESS:
                 if (verbose) std::cout << "Starting processing\n";
-                dmrate = round(1e3*parms.symboltime * parms.rxrate)/2e3; 
+                dmrate = parms.symboltime_usec * parms.rxrate_khz / 2000;
                 fastdim = parms.nsamps_per_pulse/dmrate;
-                bandwidth = 1/(2*parms.symboltime);
-		        if (verbose) printf("symbol time: %f\n", parms.symboltime);
+                bandwidth = 1/(2.e-6*parms.symboltime_usec);
+		        if (verbose) printf("symbol time: %i usec\n", parms.symboltime_usec);
                 if (verbose) printf("fastdim: %i\n",fastdim);
                 if (verbose) printf("dmrate: %i\n", dmrate);
                 if (verbose) printf("bandwidth: %f\n", bandwidth);
@@ -455,7 +448,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     filtvec_ptrs0,
                     slowdim,
                     parms.nsamps_per_pulse,
-                    (float) parms.rxrate,
+                    1.e3*parms.rxrate_khz,
                     bandwidth,
                     dmrate);
                 rval = lp_filter(
@@ -463,9 +456,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     filtvec_ptrs1,
                     slowdim,
                     parms.nsamps_per_pulse,
-                    (float) parms.rxrate,
+                    1.e3*parms.rxrate_khz,
                     bandwidth,
                     dmrate);
+
                 filtvec_dptr[0] = &filtvec_ptrs0.front();
                 filtvec_dptr[1] = &filtvec_ptrs1.front();
 

@@ -38,7 +38,7 @@ int main(int argc, char *argv[]){
     struct tm * timeinfo;
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-    std::cout << rawtime << std::endl;
+    //std::cout << rawtime << std::endl;
     char fname[80];
 
     //Variables for testing
@@ -51,6 +51,8 @@ int main(int argc, char *argv[]){
     float stop_freq;
     unsigned int nsteps;
     unsigned int npulses;
+    float resolution;
+    unsigned int last_range;
     int ifreq;
 
     po::options_description desc("Allowed options");
@@ -64,6 +66,10 @@ int main(int argc, char *argv[]){
             "Number of frequencies to step through between start and stop")
         ("npulses", po::value<unsigned int>(&npulses)->default_value(128),
             "Number of pulses in a single frequency sounding")
+        ("resolution", po::value<float>(&resolution)->default_value(10),
+            "Desired range resolution in km")
+        ("last-range", po::value<unsigned int>(&last_range)->default_value(750),
+            "Desired range resolution in km")
         ("write","write to file")
     ;
     po::variables_map vm;
@@ -76,22 +82,33 @@ int main(int argc, char *argv[]){
     }
             
     parms.freq = 1e3*start_freq;
-    parms.txrate = 500e3;
-    parms.rxrate = 200e3;
+    parms.txrate_khz = 500;
+    parms.rxrate_khz = 500;
     parms.npulses = npulses;
-    parms.symboltime = 40e-6;
-    parms.pulsetime = 5e-3;
-    sprintf(parms.pc_str,"golay4");
-    //parms.nsamps_per_pulse = (parms.pulsetime-parms.symboltime)*parms.rxrate;
-    //parms.nsamps_per_pulse = round(3*parms.pulsetime*parms.rxrate)/50;
-    //parms.nsamps_per_pulse *= 10;
-    parms.nsamps_per_pulse = parms.pulsetime*parms.rxrate;
+
+    size_t temp_symboltime_usec = resolution / 1.5e-1;
+    size_t temp_dmrate = (size_t) ceil(temp_symboltime_usec * parms.rxrate_khz / 2000);
+    if (temp_dmrate%2 == 1) temp_dmrate -= 1;
+    parms.symboltime_usec = 2000*temp_dmrate/parms.rxrate_khz;
+    //parms.symboltime_usec = 30;
+
+    size_t temp_pfactor = (size_t) ceil(last_range / 1.5e-1 / parms.symboltime_usec);
+    parms.pulsetime_usec = temp_pfactor * parms.symboltime_usec;
+
+    std::cout << "Using pulse time: " << parms.pulsetime_usec << std::endl;
+    std::cout << "symbol time: " << parms.symboltime_usec << std::endl;
+    std::cout << "Using range resolution: " << 1.5e-1*parms.symboltime_usec << std::endl;
+
+    //parms.pulsetime_usec = 5000;
+
+    sprintf(parms.pc_str,"golay8");
+    parms.nsamps_per_pulse = parms.pulsetime_usec*parms.rxrate_khz/1000;
     int datalen;
 
     printf("\nmsg values\n");
     printf("freq: %04.f kHz\n", parms.freq/1e3);
-    printf("txrate: %03.f kHz\n", parms.txrate/1e3);
-    printf("rxrate: %03.f kHz\n", parms.rxrate/1e3);
+    printf("txrate: %03.f kHz\n", parms.txrate_khz);
+    printf("rxrate: %03.f kHz\n", parms.rxrate_khz);
     printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
 
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){

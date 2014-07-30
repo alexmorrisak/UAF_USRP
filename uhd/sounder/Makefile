@@ -10,8 +10,8 @@ INCLUDES=-I"${HOME}/uhd/host/include" -I"${HOME}/uhd/host/include/uhd/types" \
 		 -I"${HOME}/uhd/host/include/uhd/usrp" -I"."
 CPP_SOURCES=main.cpp recv_clr_freq.cpp \
 			lp_filter.cpp doppler_process.cpp \
-			matched_filter.cpp transceive.cpp
-C_SOURCES=_tcpsocket.c utils.c
+			matched_filter.cpp transceive.cpp utils.cpp
+C_SOURCES=
 CPP_OBJECTS=$(CPP_SOURCES:.cpp=.o)
 C_OBJECTS=$(C_SOURCES:.c=.o)
 EXECUTABLE=sounder
