@@ -45,7 +45,7 @@ typedef std::complex<int16_t>  sc16;
 static bool stop_signal_called = false;
 void sig_int_handler(int){stop_signal_called = true;}
 
-int verbose = 10;
+int verbose = 0;
 
 
 /***********************************************************************
@@ -368,6 +368,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 //    );
 
                 //std::cout << "nave: " << nave << std::endl;
+                //for (int i=0; i<slowdim*nave*parms.nsamps_per_pulse; i++){
+                //    std::cerr << i << " " << rawvecs[0][i] << "\t" <<
+                //        rawvecs[1][i] << std::endl;
+                //}
                 for (int i=0; i<slowdim; i++){
                     for (int j=0; j<nave; j++){
                         for (int k=0; k<parms.nsamps_per_pulse; k++){
@@ -399,12 +403,12 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                                 //        << std::endl;
                             }
                         }
-                        if (j == nave-1) {
-                            for (int k=0; k<parms.nsamps_per_pulse; k++){
-                                std::cout << k << " " << outvecs0[i][k] << "\t";
-                                std::cout << outvecs1[i][k] << std::endl;
-                            }
-                        }
+                        //if (j == nave-1) {
+                        //    for (int k=0; k<parms.nsamps_per_pulse; k++){
+                        //        std::cout << k << " " << outvecs0[i][k] << "\t";
+                        //        std::cout << outvecs1[i][k] << std::endl;
+                        //    }
+                        //}
                     }
                 }
 
