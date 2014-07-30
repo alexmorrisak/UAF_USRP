@@ -9,7 +9,8 @@ linux_libs=-lboost_thread -lboost_program_options
 INCLUDES=-I"${HOME}/uhd/host/include" -I"${HOME}/uhd/host/include/uhd/types" \
 		 -I"${HOME}/uhd/host/include/uhd/usrp" -I"."
 CPP_SOURCES=main.cpp recv_clr_freq.cpp \
-			lp_filter.cpp doppler_process.cpp matched_filter.cpp transceive.cpp
+			lp_filter.cpp doppler_process.cpp matched_filter.cpp \
+			matched_filter2.cpp transceive2.cpp
 C_SOURCES=_tcpsocket.c utils.c
 CPP_OBJECTS=$(CPP_SOURCES:.cpp=.o)
 C_OBJECTS=$(C_SOURCES:.c=.o)
