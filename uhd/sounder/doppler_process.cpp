@@ -50,15 +50,15 @@ int doppler_process(
         }
     }
     // Find and remove any narrow-band interference
-    for (int i=0; i<slowdim; i++){
-        std::complex<double> DC(0,0);
-        for (int j=20; j<fastdim; j++)
-            DC += doppler_grid[i][j];
-        DC /= (fastdim-20);
-        //printf("slowdim %i, DC: %.1f, %.1f\n", i, std::abs(DC), 180/M_PI*std::arg(DC));
-        for (int j=0; j<fastdim; j++)
-             doppler_grid[i][j] -= DC;
-    }
+    //for (int i=0; i<slowdim; i++){
+    //    std::complex<double> DC(0,0);
+    //    for (int j=20; j<fastdim; j++)
+    //        DC += doppler_grid[i][j];
+    //    DC /= (fastdim-20);
+    //    //printf("slowdim %i, DC: %.1f, %.1f\n", i, std::abs(DC), 180/M_PI*std::arg(DC));
+    //    for (int j=0; j<fastdim; j++)
+    //         doppler_grid[i][j] -= DC;
+    //}
 
     // Find the max spectral component in each range bin
     for (int irange=0; irange<fastdim; irange++){

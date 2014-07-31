@@ -25,13 +25,15 @@ def get_options():
 options = get_options()
 fstring = "ionogram." + options.date + "." + options.time + ".h5"
 f = h5py.File("/home/radar/UAF_USRP/uhd/client/"+fstring,'r')
-nfreqs = len(f.keys())
+nfreqs = len(f.keys());
 
 dset = f[f.keys()[0]]
 image = np.empty([dset.shape[0], nfreqs], float)
-minfreq = float(f.keys()[0]) / 1000
+#minfreq_str=f.keys()[0];
+minfreq = float((f.keys()[0]).replace("omode_","")) / 1000
 print minfreq
-maxfreq = float(f.keys()[nfreqs-1]) / 1000
+maxfreq = float((f.keys()[nfreqs-1]).replace("omode_","")) / 1000
+#maxfreq = float(f.keys()[nfreqs-1]) / 1000
 print maxfreq
 for i in range(0,nfreqs):
     dset = f[f.keys()[i]]

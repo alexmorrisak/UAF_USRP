@@ -1,3 +1,11 @@
+void capture_spectrum(
+    uhd::usrp::multi_usrp::sptr usrp,
+    uhd::rx_streamer::sptr rx_stream,
+    size_t start_freq_khz,
+    size_t stop_freq_khz,
+    size_t bandwidth_khz,
+    float* periodogram
+);
 void recv_clr_freq(
     uhd::usrp::multi_usrp::sptr usrp,
     uhd::rx_streamer::sptr rx_stream,

@@ -10,7 +10,7 @@ INCLUDES=-I"${HOME}/uhd/host/include" -I"${HOME}/uhd/host/include/uhd/types" \
 		 -I"${HOME}/uhd/host/include/uhd/usrp" -I"."
 CPP_SOURCES=main.cpp recv_clr_freq.cpp \
 			lp_filter.cpp doppler_process.cpp \
-			matched_filter.cpp transceive.cpp utils.cpp
+			matched_filter.cpp transceive.cpp utils.cpp capture_spectrum.cpp
 C_SOURCES=
 CPP_OBJECTS=$(CPP_SOURCES:.cpp=.o)
 C_OBJECTS=$(C_SOURCES:.c=.o)

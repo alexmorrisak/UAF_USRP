@@ -21,31 +21,46 @@
 #include <unistd.h>
 #include <fftw3.h>
 
+#define SAMPLE_RATE 1e6
 typedef std::complex<int16_t>  sc16;
 extern int verbose;
 
 /***********************************************************************
- * clear_freq function
+ * capture_spectrum function
  **********************************************************************/
-void recv_clr_freq(
+void capture_spectrum(
     uhd::usrp::multi_usrp::sptr usrp,
     uhd::rx_streamer::sptr rx_stream,
-    double *center_freq,
-    double bandwidth
+    size_t start_freq_khz,
+    size_t stop_freq_khz,
+    size_t bandwidth_khz,
+    float* periodogram
 ){
-    if (verbose) std::cout << "Entering recv_clr_freq\n";
+    int debug = 0;
+    if (verbose) std::cout << "Entering capture_spectrum\n";
+    float center_freq = 1e3*(stop_freq_khz - start_freq_khz)/2;
+
     int num_total_samps = 0;
-    int nave=100;
-    int nsamps = 100;
-    double min_inx;
+    int nave = 100;
+    //int nsamps = 100;
+    size_t start_inx;
+    size_t nsamps = SAMPLE_RATE / (1e3*bandwidth_khz);
+    size_t nbins = 1e-3*SAMPLE_RATE;
+    size_t span = stop_freq_khz - start_freq_khz;
+    if (verbose){
+        std::cout << "nsamps: " << nsamps << std::endl;
+        std::cout << "nbins: " << nbins << std::endl;
+        std::cout << "span: " << span << std::endl;
+    }
+    //double min_inx;
     fftw_complex *in=NULL,*out=NULL;
     fftw_plan plan;
-    std::vector<double> tmp_pwr(nsamps,0);
-    std::vector<double> pwr;
-    pwr.reserve(nsamps);
+    std::vector<double> tmp_pwr(nbins,0);
+    std::vector<double> pwr(nbins,0);
+    //pwr.resize(nsamps);
 
-    usrp->set_rx_rate(1e6);
-    usrp->set_rx_freq(1e3*(*center_freq));
+    usrp->set_rx_rate(SAMPLE_RATE);
+    usrp->set_rx_freq(center_freq);
     //printf("%f\n",*center_freq);
   
     uhd::rx_metadata_t md;
@@ -86,15 +101,20 @@ void recv_clr_freq(
         }
     
     if(in!=NULL){free(in);in=NULL;}
-    in =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nsamps);
+    in =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nbins);
     if(out!=NULL){free(out);out=NULL;}
-    out =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nsamps);
+    out =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nbins);
 
-    plan = fftw_plan_dft_1d(nsamps, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    //plan = fftw_plan_dft_1d(nsamps, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+    plan = fftw_plan_dft_1d(nbins, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
 
     for (int i=0;i<nsamps;i++){
        //in[i][0] = (hann_window[i]*rx_short_vecs[0][i].real());
        //in[i][1] = (hann_window[i]*rx_short_vecs[0][i].imag());
+       in[i][0] = (double)buff[0][i].real();
+       in[i][1] = (double)buff[0][i].imag();
+    }
+    for (int i=nsamps;i<nbins;i++){
        in[i][0] = (double)buff[0][i].real();
        in[i][1] = (double)buff[0][i].imag();
     }
@@ -103,7 +123,7 @@ void recv_clr_freq(
 
      //Add the current spectrum to the running total
     //if (num_total_samps != 0){
-     for (int i=0;i<nsamps;i++){
+     for (int i=0;i<nbins;i++){
              tmp_pwr[i] += (out[i][0]*out[i][0] + out[i][1]*out[i][1]) / 
                      (double)(nsamps*nsamps*nave);
      }
@@ -121,21 +141,28 @@ void recv_clr_freq(
   //  printf("%i, %f\n",i, 10*log(tmp_pwr[i]));
   //}
   //Center the fft (fftshift)
-  for(int i=0;i<(nsamps/2);i++){
-      pwr[nsamps/2+i]=tmp_pwr[i];
-      pwr[i]=tmp_pwr[nsamps/2+i];
+  for(int i=0;i<(nbins/2);i++){
+      pwr[nbins/2+i]=tmp_pwr[i];
+      pwr[i]=tmp_pwr[nbins/2+i];
   }
   //Done centering
 
   // Now find quietest frequency
-  min_inx = (int) (nsamps/2 - bandwidth/2e1);
-  int i;
-  for (i = min_inx; i<(nsamps/2+bandwidth/2e1); i++){
-    //printf("%f: %f\n",*center_freq + 10*i-500,log(pwr[i]));
-    if (pwr[i] < pwr[min_inx])
-    	min_inx = i;
+  //min_inx = (int) (nsamps/2 - bandwidth/2e1);
+  //int i;
+  //for (i = min_inx; i<(nsamps/2+bandwidth/2e1); i++){
+  //  //printf("%f: %f\n",*center_freq + 10*i-500,log(pwr[i]));
+  //  if (pwr[i] < pwr[min_inx])
+  //  	min_inx = i;
+  //}
+  //*center_freq = *center_freq + (10*min_inx-500);
+  start_inx = (int) (nbins - span)/2;
+  if (debug) std::cout << "start inx: " << start_inx << std::endl;
+  for (int i=0; i<span; i++){
+    periodogram[i] = pwr[start_inx+i];
+    if (debug) std::cout << periodogram[i] << std::endl;
   }
-  *center_freq = *center_freq + (10*min_inx-500);
+
 
 }
 

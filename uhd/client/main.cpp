@@ -27,6 +27,7 @@ int main(int argc, char *argv[]){
     int rval =0, status=0;
     struct sockaddr_in serv_addr;
     struct soundingParms parms;
+    struct periodogramParms spect_parms;
     char usrpmsg;
 
     /* hdf5 and file-writing variables */
@@ -44,6 +45,11 @@ int main(int argc, char *argv[]){
     //Variables for testing
     std::vector<float> rxdata;
     std::vector<float> test;
+
+    //variables for clear frequency search
+    std::vector<float> spectrum;
+    size_t min_inx;
+    size_t nominal_freq;
 
     //variables for command line arguments
     float start_freq;
@@ -81,7 +87,6 @@ int main(int argc, char *argv[]){
         return 1;
     }
             
-    parms.freq = 1e3*start_freq;
     parms.txrate_khz = 500;
     parms.rxrate_khz = 500;
     parms.npulses = npulses;
@@ -106,7 +111,7 @@ int main(int argc, char *argv[]){
     int datalen;
 
     printf("\nmsg values\n");
-    printf("freq: %04.f kHz\n", parms.freq/1e3);
+    printf("freq: %04.f kHz\n", nominal_freq);
     printf("txrate: %03.f kHz\n", parms.txrate_khz);
     printf("rxrate: %03.f kHz\n", parms.rxrate_khz);
     printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
@@ -131,10 +136,27 @@ int main(int argc, char *argv[]){
         file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
     step_freq = (stop_freq+1 - start_freq) / nsteps;
-    parms.freq = 1e3*start_freq;
+    nominal_freq = start_freq;
     ifreq = 0;
-    while(parms.freq < 1e3*stop_freq+1){
+    while(nominal_freq < stop_freq){
         //parms.freq = 1e6 + i*100e3;
+
+        /* Get the spectrum so that we can get the quietest frequency*/
+        usrpmsg = 'l';
+        send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
+        spectrum.resize(200);
+        spect_parms.start_freq_khz = nominal_freq-100;
+        spect_parms.end_freq_khz = nominal_freq+100;
+        spect_parms.bandwidth_khz = 10;
+        send(sockfd, &spect_parms, sizeof(parms), 0);
+        recv(sockfd, &spectrum.front(), 200*sizeof(float), 0);
+        min_inx = 0;
+        for (int i=1; i<spectrum.size(); i++){
+            if (spectrum[i] < spectrum[min_inx]) min_inx = i;
+        }
+        parms.freq = min_inx + spect_parms.start_freq_khz;
+        rval = recv(sockfd, &status, sizeof(int),0);
+        printf("rx status: %i\n", status);
 
         /* Perform the sounding */
         usrpmsg = 's';
@@ -164,7 +186,8 @@ int main(int argc, char *argv[]){
             dataspace_id = H5Screate_simple(1, dims, NULL);
         }
 
-        sprintf(dset, "%05.f",parms.freq/1e3);
+        //sprintf(dset, "%05.f",parms.freq);
+        sprintf(dset, "omode_%05i",nominal_freq);
         if (vm.count("write")){
             dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -181,11 +204,11 @@ int main(int argc, char *argv[]){
             if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
         }
 
-        printf("freq %i of %i (%.0f kHz)\n", ifreq+1, nsteps, parms.freq/1e3);
+        printf("Sounding %i of %i complete (%i kHz)\n", ifreq+1, nsteps, parms.freq);
         //for (size_t i=0; i<rxdata.size(); i++){
         //    printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
         //}
-        parms.freq += 1e3*step_freq;
+        nominal_freq += step_freq;
 	ifreq++;
     }
 
@@ -202,6 +225,7 @@ int main(int argc, char *argv[]){
     /* Close the sounding server */
     usrpmsg = 'x';
     send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
+    close(sockfd);
 
     printf("done!\n");
 
