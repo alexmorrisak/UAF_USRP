@@ -81,7 +81,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     std::vector<float> periodogram;
 
     //transmit variables
-    std::string tx_subdev="A:A";
+    std::string tx_subdev="A:AB";
     unsigned int bufflen;
     unsigned int samps_per_sym;
     boost::thread_group transmit_thread;
@@ -99,31 +99,25 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     size_t spb;
     double rx_rate; 
     unsigned int nave = 1;
-    //std::vector<std::vector<std::complex<float> > > outvecs;
-    std::vector<std::vector<std::complex<float> > > outvecs0;
-    std::vector<std::vector<std::complex<float> > > outvecs1;
-    //std::vector<std::vector<std::complex<float> > > outvecs2[2];
     std::vector<std::vector<std::complex<int16_t> > > rawvecs;
-    //std::vector<std::complex<float> *> outvec_ptrs;
-    std::vector<std::complex<float> *> outvec_ptrs0;
-    std::vector<std::complex<float> *> outvec_ptrs1;
     std::vector<std::complex<int16_t> *> rawvec_ptrs;
     float ptime_eff;
 
     //data processing variables
     int dmrate, slowdim, fastdim;
     float bandwidth;
-    //std::vector<std::vector<std::complex<float> > > filtvecs;
-    std::vector<std::vector<std::complex<float> > > filtvecs0;
-    std::vector<std::vector<std::complex<float> > > filtvecs1;
-    //std::vector<std::complex<float> *> filtvec_ptrs;
-    std::vector<std::complex<float> *> filtvec_ptrs0;
-    std::vector<std::complex<float> *> filtvec_ptrs1;
-    std::complex<float>** filtvec_dptr[2];
-    std::vector<std::vector<std::complex<float> > > ffvecs;
-    std::vector<std::complex<float> *> ffvec_ptrs;
-    std::vector<float> fpow;
-    std::vector<float> fvel;
+
+    std::vector<std::vector<std::complex<float> > > outvecs[2][2];
+    std::vector<std::complex<float> *> outvec_ptrs[2][2];
+
+    std::vector<std::vector<std::complex<float> > > filtvecs[2][2];
+    std::vector<std::complex<float> *> filtvec_ptrs[2][2];
+    std::complex<float>** filtvec_dptr[2][2];
+
+    std::vector<std::vector<std::complex<float> > > ffvecs[2];
+    std::vector<std::complex<float> *> ffvec_ptrs[2];
+    std::vector<float> fpow[2];
+    std::vector<float> fvel[2];
 
     //socket-related variables
     int sock, msgsock, rval, rfds, efds;
@@ -260,13 +254,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
 
 	                //configure the USRP according to the arguments from the FIFO
-	                freq /= 1e3; //convert to kHz
-	                recv_clr_freq(
-	                    usrp,
-	                    rx_stream,
-	                    &freq,
-	                    100);
-	                freq *= 1000;
                     for (size_t i=0; i<usrp->get_rx_num_channels(); i++){
                         usrp->set_rx_freq(freq,i);
                     }
@@ -387,60 +374,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         parms.nsamps_per_pulse
                         );
 
-                    outvecs0.resize(slowdim);
-                    outvecs1.resize(slowdim);
-                    outvec_ptrs0.resize(slowdim);
-                    outvec_ptrs1.resize(slowdim);
-                    for (int i=0; i<slowdim; i++){
-                        outvecs0[i].resize(parms.nsamps_per_pulse,0);
-                        outvecs1[i].resize(parms.nsamps_per_pulse,0);
-                        outvec_ptrs0[i] = &outvecs0[i].front();
-                        outvec_ptrs1[i] = &outvecs1[i].front();
-                    }
-                    //std::cout << "nave: " << nave << std::endl;
-                    //for (int i=0; i<slowdim*nave*parms.nsamps_per_pulse; i++){
-                    //    std::cerr << i << " " << rawvecs[0][i] << "\t" <<
-                    //        rawvecs[1][i] << std::endl;
-                    //}
-                    for (int i=0; i<slowdim; i++){
-                        for (int j=0; j<nave; j++){
-                            for (int k=0; k<parms.nsamps_per_pulse; k++){
-                                if (j%2 == 0){
-                                    outvecs0[i][k] += 
-                                        std::complex<int16_t>(1,0) * 
-                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
-                                            std::complex<int16_t>(0,-1) * 
-                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
-                                    //std::cout << j << " " <<
-                                    //    std::complex<int16_t>(1,0) * 
-                                    //    (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
-                                    //        std::complex<int16_t>(0,-1) * 
-                                    //        rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k])
-                                    //        << std::endl;
-                                }
-                                if (j%2 == 1){
-                                    outvecs1[i][k] += 
-                                        std::complex<int16_t>(1,0) * 
-                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
-                                            std::complex<int16_t>(0,-1) * 
-                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
-
-                                    //std::cout <<  j << " " << 
-                                    //    std::complex<int16_t>(1,0) * 
-                                    //    (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
-                                    //        std::complex<int16_t>(0,-1) * 
-                                    //        rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k])
-                                    //        << std::endl;
-                                }
-                            }
-                            //if (j == nave-1) {
-                            //    for (int k=0; k<parms.nsamps_per_pulse; k++){
-                            //        std::cout << k << " " << outvecs0[i][k] << "\t";
-                            //        std::cout << outvecs1[i][k] << std::endl;
-                            //    }
-                            //}
-                        }
-                    }
 
 	                if (verbose) std::cout << "Done receiving, waiting for transmit thread.." << std::endl;
                     transmit_thread.join_all();
@@ -463,41 +396,108 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     if (verbose) printf("fastdim: %i\n",fastdim);
                     if (verbose) printf("dmrate: %i\n", dmrate);
                     if (verbose) printf("bandwidth: %f\n", bandwidth);
-                    //filtvec_ptrs.resize(slowdim);
-                    filtvec_ptrs0.resize(slowdim);
-                    filtvec_ptrs1.resize(slowdim);
-                    //filtvecs.resize(slowdim);
-                    filtvecs0.resize(slowdim);
-                    filtvecs1.resize(slowdim);
+
+                    outvecs[0][0].resize(slowdim);
+                    outvecs[0][1].resize(slowdim);
+                    outvecs[1][0].resize(slowdim);
+                    outvecs[1][1].resize(slowdim);
+                    outvec_ptrs[0][0].resize(slowdim);
+                    outvec_ptrs[0][1].resize(slowdim);
+                    outvec_ptrs[1][0].resize(slowdim);
+                    outvec_ptrs[1][1].resize(slowdim);
                     for (int i=0; i<slowdim; i++){
-                        //filtvecs[i].resize(parms.nsamps_per_pulse/dmrate);
-                        filtvecs0[i].resize(parms.nsamps_per_pulse/dmrate);
-                        filtvecs1[i].resize(parms.nsamps_per_pulse/dmrate);
-                        //filtvec_ptrs[i] = &filtvecs[i].front();
-                        filtvec_ptrs0[i] = &filtvecs0[i].front();
-                        filtvec_ptrs1[i] = &filtvecs1[i].front();
+                        outvecs[0][0][i].resize(parms.nsamps_per_pulse,0);
+                        outvecs[0][1][i].resize(parms.nsamps_per_pulse,0);
+                        outvecs[1][0][i].resize(parms.nsamps_per_pulse,0);
+                        outvecs[1][1][i].resize(parms.nsamps_per_pulse,0);
+                        outvec_ptrs[0][0][i] = &outvecs[0][0][i].front();
+                        outvec_ptrs[0][1][i] = &outvecs[0][1][i].front();
+                        outvec_ptrs[1][0][i] = &outvecs[1][0][i].front();
+                        outvec_ptrs[1][1][i] = &outvecs[1][1][i].front();
+                    }
+                    for (int i=0; i<slowdim; i++){
+                        for (int j=0; j<nave; j++){
+                            for (int k=0; k<parms.nsamps_per_pulse; k++){
+                                if (j%2 == 0){
+                                    outvecs[0][0][i][k] += 
+                                        std::complex<int16_t>(1,0) * 
+                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
+                                            std::complex<int16_t>(0,1) * 
+                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
+                                    outvecs[1][0][i][k] += 
+                                        std::complex<int16_t>(1,0) * 
+                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] - 
+                                            std::complex<int16_t>(0,1) * 
+                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
+                                    //std::cout << j << " " <<
+                                    //    std::complex<int16_t>(1,0) * 
+                                    //    (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
+                                    //        std::complex<int16_t>(0,-1) * 
+                                    //        rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k])
+                                    //        << std::endl;
+                                }
+                                if (j%2 == 1){
+                                    outvecs[0][1][i][k] += 
+                                        std::complex<int16_t>(1,0) * 
+                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
+                                            std::complex<int16_t>(0,1) * 
+                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
+                                    outvecs[1][1][i][k] += 
+                                        std::complex<int16_t>(1,0) * 
+                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] - 
+                                            std::complex<int16_t>(0,1) * 
+                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
+                                    //std::cout <<  j << " " << 
+                                    //    std::complex<int16_t>(1,0) * 
+                                    //    (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
+                                    //        std::complex<int16_t>(0,-1) * 
+                                    //        rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k])
+                                    //        << std::endl;
+                                }
+                            }
+                            //if (j == nave-1) {
+                            //    for (int k=0; k<parms.nsamps_per_pulse; k++){
+                            //        std::cout << k << " " << outvecs0[i][k] << "\t";
+                            //        std::cout << outvecs1[i][k] << std::endl;
+                            //    }
+                            //}
+                        }
                     }
 
-
-                    rval = lp_filter(
-                        outvec_ptrs0,
-                        filtvec_ptrs0,
-                        slowdim,
-                        parms.nsamps_per_pulse,
-                        1.e3*parms.rxrate_khz,
-                        bandwidth,
-                        dmrate);
-                    rval = lp_filter(
-                        outvec_ptrs1,
-                        filtvec_ptrs1,
-                        slowdim,
-                        parms.nsamps_per_pulse,
-                        1.e3*parms.rxrate_khz,
-                        bandwidth,
-                        dmrate);
-
-                    filtvec_dptr[0] = &filtvec_ptrs0.front();
-                    filtvec_dptr[1] = &filtvec_ptrs1.front();
+                    filtvecs[0][0].resize(slowdim);
+                    filtvecs[0][1].resize(slowdim);
+                    filtvecs[1][0].resize(slowdim);
+                    filtvecs[1][1].resize(slowdim);
+                    filtvec_ptrs[0][0].resize(slowdim);
+                    filtvec_ptrs[0][1].resize(slowdim);
+                    filtvec_ptrs[1][0].resize(slowdim);
+                    filtvec_ptrs[1][1].resize(slowdim);
+                    for (int i=0; i<slowdim; i++){
+                        filtvecs[0][0][i].resize(parms.nsamps_per_pulse/dmrate);
+                        filtvecs[0][1][i].resize(parms.nsamps_per_pulse/dmrate);
+                        filtvecs[1][0][i].resize(parms.nsamps_per_pulse/dmrate);
+                        filtvecs[1][1][i].resize(parms.nsamps_per_pulse/dmrate);
+                        filtvec_ptrs[0][0][i] = &filtvecs[0][0][i].front();
+                        filtvec_ptrs[0][1][i] = &filtvecs[0][1][i].front();
+                        filtvec_ptrs[1][0][i] = &filtvecs[1][0][i].front();
+                        filtvec_ptrs[1][1][i] = &filtvecs[1][1][i].front();
+                    }
+                    for (int mode=0; mode<2; mode++){
+                        for (int pcode=0; pcode<2; pcode++){
+                            rval = lp_filter(
+                                outvec_ptrs[mode][pcode],
+                                filtvec_ptrs[mode][pcode],
+                                slowdim,
+                                parms.nsamps_per_pulse,
+                                1.e3*parms.rxrate_khz,
+                                bandwidth,
+                                dmrate);
+                        }
+                    }
+                    filtvec_dptr[0][0] = &filtvec_ptrs[0][0].front();
+                    filtvec_dptr[0][1] = &filtvec_ptrs[0][1].front();
+                    filtvec_dptr[1][0] = &filtvec_ptrs[1][0].front();
+                    filtvec_dptr[1][1] = &filtvec_ptrs[1][1].front();
 
                     //for (int a=0; a<2; a++){
                     //    for (int i=0; i<slowdim; i++){
@@ -506,49 +506,61 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //        }
                     //    }
                     //}
-                    ffvec_ptrs.resize(slowdim);
-                    ffvecs.resize(slowdim);
+                    ffvec_ptrs[0].resize(slowdim);
+                    ffvec_ptrs[1].resize(slowdim);
+                    ffvecs[0].resize(slowdim);
+                    ffvecs[1].resize(slowdim);
                     for (int i=0; i<slowdim; i++){
-                        ffvecs[i].resize(parms.nsamps_per_pulse/dmrate);
-                        ffvec_ptrs[i] = &ffvecs[i].front();
+                        ffvecs[0][i].resize(parms.nsamps_per_pulse/dmrate);
+                        ffvecs[1][i].resize(parms.nsamps_per_pulse/dmrate);
+                        ffvec_ptrs[0][i] = &ffvecs[0][i].front();
+                        ffvec_ptrs[1][i] = &ffvecs[1][i].front();
                     }
-                    
-                    rval = matched_filter(
-                        filtvec_dptr,
-                        ffvec_ptrs,
-                        pcode_ptrs,
-                        pcode0.size(),
-                        slowdim,
-                        parms.nsamps_per_pulse/dmrate,
-                        2);
+
+                    /* Performed matched filtering for both o- and x-mode samples*/
+                    for (int mode=0; mode<2; mode++){
+                        rval = matched_filter(
+                            filtvec_dptr[mode],
+                            ffvec_ptrs[mode],
+                            pcode_ptrs,
+                            pcode0.size(),
+                            slowdim,
+                            parms.nsamps_per_pulse/dmrate,
+                            2);
+                    }
 
                     //typedef float rrec[2];
-                    fpow.resize(parms.nsamps_per_pulse/dmrate,0);
-                    fvel.resize(parms.nsamps_per_pulse/dmrate,0);
-                    rval = doppler_process(
-                        ffvec_ptrs,
-                        &fpow.front(),
-                        &fvel.front(),
-                        slowdim,
-                        parms.nsamps_per_pulse/dmrate);
-
+                    fpow[0].resize(parms.nsamps_per_pulse/dmrate,0);
+                    fpow[1].resize(parms.nsamps_per_pulse/dmrate,0);
+                    fvel[0].resize(parms.nsamps_per_pulse/dmrate,0);
+                    fvel[1].resize(parms.nsamps_per_pulse/dmrate,0);
+                    for (int mode=0; mode<2; mode++){
+                        rval = doppler_process(
+                            ffvec_ptrs[mode],
+                            &fpow[mode].front(),
+                            &fvel[mode].front(),
+                            slowdim,
+                            parms.nsamps_per_pulse/dmrate);
+                    }
                     send(msgsock, &return_status, sizeof(return_status),0);
-            for (int i=0; i<parms.nsamps_per_pulse/dmrate; i++){
-                fpow[i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
-                //printf("%i: %.1f @ %.1f\n",i,30+10*log10(fpow[i]),fvel[i]);
-                //printf("%i: %e @ %.1f\n",i,fpow[i],fvel[i]);
-                //filtvec_ptrs[0][i] /= ((float)nave*std::pow(2,15));
-                //ffvec_ptrs[0][i] /= ((float)nave*std::pow(2,15));
-                //outvec_ptrs[0][i] /= ((float)nave*std::pow(2,15))/4;
-                //printf("%i: %e @ %.1f\n",i,std::abs(filtvec_ptrs[0][i]),fvel[i]);
-                //printf("%i: %e @ %.1f\n",i,std::abs(ffvec_ptrs[0][i]),fvel[i]);
-                //printf("%i: %.3f @ %.1f\n",i,std::abs(outvec_ptrs[0][i]),fvel[i]);
-            }
+                    for (int i=0; i<parms.nsamps_per_pulse/dmrate; i++){
+                        fpow[0][i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
+                        fpow[1][i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
+                        //printf("%i: %.1f @ %.1f\n",i,30+10*log10(fpow[i]),fvel[i]);
+                        //printf("%i: %e @ %.1f\n",i,fpow[i],fvel[i]);
+                        //filtvec_ptrs[0][i] /= ((float)nave*std::pow(2,15));
+                        //ffvec_ptrs[0][i] /= ((float)nave*std::pow(2,15));
+                        //outvec_ptrs[0][i] /= ((float)nave*std::pow(2,15))/4;
+                        //printf("%i: %e @ %.1f\n",i,std::abs(filtvec_ptrs[0][i]),fvel[i]);
+                        //printf("%i: %e @ %.1f\n",i,std::abs(ffvec_ptrs[0][i]),fvel[i]);
+                        //printf("%i: %.3f @ %.1f\n",i,std::abs(outvec_ptrs[0][i]),fvel[i]);
+                    }
                     break;
 
                 case GET_DATA:
                     send(msgsock, &fastdim, sizeof(fastdim),0);
-                    send(msgsock, &fpow.front(), fpow.size()*sizeof(float),0);
+                    send(msgsock, &fpow[0].front(), fpow[0].size()*sizeof(float),0);
+                    send(msgsock, &fpow[1].front(), fpow[1].size()*sizeof(float),0);
                     break;
 
                 default:

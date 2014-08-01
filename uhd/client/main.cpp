@@ -43,7 +43,7 @@ int main(int argc, char *argv[]){
     char fname[80];
 
     //Variables for testing
-    std::vector<float> rxdata;
+    std::vector<float> rxdata[2];
     std::vector<float> test;
 
     //variables for clear frequency search
@@ -156,28 +156,30 @@ int main(int argc, char *argv[]){
         }
         parms.freq = min_inx + spect_parms.start_freq_khz;
         rval = recv(sockfd, &status, sizeof(int),0);
-        printf("rx status: %i\n", status);
+        //printf("rx status: %i\n", status);
 
         /* Perform the sounding */
         usrpmsg = 's';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         send(sockfd, &parms, sizeof(parms), 0);
         rval = recv(sockfd, &status, sizeof(int),0);
-        printf("rx status: %i\n", status);
+        //printf("rx status: %i\n", status);
 
         /* Process the data */
         usrpmsg = 'p';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         rval = recv(sockfd, &status, sizeof(int),0);
-        printf("process status: %i\n", status);
+        //printf("process status: %i\n", status);
 
         /* Get the data */
         usrpmsg = 'd';
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         recv(sockfd, &datalen, sizeof(datalen), 0);
-        rxdata.resize(datalen);
+        rxdata[0].resize(datalen);
+        rxdata[1].resize(datalen);
         test.resize(datalen,100);
-        recv(sockfd, &rxdata.front(), rxdata.size()*sizeof(float), 0);
+        recv(sockfd, &rxdata[0].front(), rxdata[0].size()*sizeof(float), 0);
+        recv(sockfd, &rxdata[1].front(), rxdata[1].size()*sizeof(float), 0);
 
         /* Write the data to hdf5 file */
         dims[0] = datalen;
@@ -195,7 +197,24 @@ int main(int argc, char *argv[]){
 
         if (vm.count("write")){
             eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                &rxdata.front());
+                &rxdata[0].front());
+            if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+        }
+
+        if (vm.count("write")){
+            eval =H5Dclose(dataset_id);
+            if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
+        }
+
+        sprintf(dset, "xmode_%05i",nominal_freq);
+        if (vm.count("write")){
+            dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
+                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        }
+
+        if (vm.count("write")){
+            eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+                &rxdata[1].front());
             if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
         }
 

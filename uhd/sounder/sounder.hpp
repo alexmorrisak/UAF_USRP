@@ -6,12 +6,6 @@ void capture_spectrum(
     size_t bandwidth_khz,
     float* periodogram
 );
-void recv_clr_freq(
-    uhd::usrp::multi_usrp::sptr usrp,
-    uhd::rx_streamer::sptr rx_stream,
-    double *center_freq,
-    double bandwidth
-);
 int lp_filter(
     std::vector<std::complex<float> *> indata,
     std::vector<std::complex<float> *> outdata,
