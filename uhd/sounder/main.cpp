@@ -32,7 +32,7 @@
 #include <sounder.hpp>
 
 //#include "c_utils.h"
-#include "utils.h"
+#include "utils.hpp"
 #include "../client/global_variables.h"
 
 #define HOST_PORT 45001
