@@ -1,12 +1,16 @@
+/*Definitions of commands that client gives to server*/
 #define SEND 's'
 #define LISTEN 'l'
 #define EXIT 'x'
 #define GET_DATA 'd'
 #define PROCESS 'p'
-#define MAX_VELOCITY 100 //The maximum unambiguous velocity
-#define OSR 2 //The receive data product oversample rate
-#define RX_RATE 500e3
 
+#define MAX_VELOCITY 100 //The maximum unambiguous Doppler velocity. Low number improves computational efficiency
+#define OSR 4 //Factor by which each range gate is oversampled.
+#define TX_RATE 500e3 //Sample rate "over-the-wire" between host computer and USRP
+#define RX_RATE 500e3 //Sample rate "over-the-wire" between host computer and USRP
+
+/* Pulse codes known to both client and server */
 #define BARKER_13 {0.,1.,1.,1.,1.,1.,-1.,-1.,1.,1.,-1.,1.,-1.,1.,0.}
 #define GOLAY_16_0 {1.,1.,1.,-1.,1.,1.,-1.,1., 1.,1.,1.,-1.,-1.,-1.,1.,-1.};
 #define GOLAY_16_1 {1.,1.,1.,-1.,1.,1.,-1.,1., -1.,-1.,-1.,1.,1.,1.,-1.,1.};
@@ -18,6 +22,7 @@
 #define GOLAY_4_1 {1.,1.,-1.,1.};
 #define RECT {1.}
 
+/*Data structures shared between client and server*/
 struct soundingParms{
     size_t freq;
     size_t txrate_khz;

@@ -36,8 +36,6 @@
 #include "../client/global_variables.h"
 
 #define HOST_PORT 45001
-#define TX_RATE 500e3 
-#define RX_RATE 500e3
 
 namespace po = boost::program_options;
 typedef std::complex<int16_t>  sc16;
@@ -258,14 +256,16 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     }
                             
 	                freq = 1e3*parms.freq;
-	                //freq = 1.e3*parms.freq_khz;
-	                //tx_rate = parms.txrate;
-	                //rx_rate = parms.rxrate;
-	                //if (verbose) std::cout << "Using options: \n" << 
-	                //	freq << "\n" << parms.txrate_khz << "\n" << rx_rate << std::endl;
+                    if (freq < 7e6){
+                        if (verbose) std::cout << "Using antenna A\n";
+                        usrp->set_tx_subdev_spec(std::string("A:A"));
+                    }
+                    else {
+                        if (verbose) std::cout << "Using antenna B\n";
+                        usrp->set_tx_subdev_spec(std::string("A:B"));
+                    }
 
-
-	                //configure the USRP according to the arguments from the FIFO
+	                //configure the USRP according to the arguments from the client
                     for (size_t i=0; i<usrp->get_rx_num_channels(); i++){
                         usrp->set_rx_freq(freq,i);
                     }
@@ -276,11 +276,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     if (verbose) std::cout << boost::format("Actual RX Freq: %f MHz...") % (usrp->get_rx_freq()/1e6) << "\n" << std::endl;
 
 	                if (new_seq_flag == 1){
-	                	//if (verbose) std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % TX_RATE / 1e3 << std::endl;
 	                	usrp->set_tx_rate(TX_RATE);
 	                	if (verbose) std::cout << boost::format("Actual TX Rate: %f Ksps...") % (usrp->get_tx_rate()/1e3) << std::endl << std::endl;
-	                	
-	                	//if (verbose) std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % RX_RATE / 1e3 << std::endl;
 	                	usrp->set_rx_rate(RX_RATE);
 	                	if (verbose) std::cout << boost::format("Actual RX Rate: %f Ksps...") % (usrp->get_rx_rate()/1e3) << std::endl << std::endl;
 	                }
@@ -558,7 +555,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                             pcode0.size(),
                             slowdim,
                             parms.nsamps_per_pulse/dmrate,
-                            2);
+                            OSR);
                     }
 
                     //typedef float rrec[2];

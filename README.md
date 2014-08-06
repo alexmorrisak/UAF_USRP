@@ -1,4 +1,4 @@
 UAF_USRP
 ========
 
-Software for using the USRP as a radar
+Software for using the USRP as an ionosonde
