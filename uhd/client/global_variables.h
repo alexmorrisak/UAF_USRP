@@ -11,6 +11,7 @@
 #define OSR 1 //Factor by which each range gate is oversampled.
 #define TX_RATE 500e3 //Sample rate "over-the-wire" between host computer and USRP
 #define RX_RATE 500e3 //Sample rate "over-the-wire" between host computer and USRP
+#define XOVER_FREQ 30e6 //Frequency at which USRP switches from antenna port A to B
 
 /* Pulse codes known to both client and server */
 #define BARKER_13 {0.,1.,1.,1.,1.,1.,-1.,-1.,1.,1.,-1.,1.,-1.,1.,0.}

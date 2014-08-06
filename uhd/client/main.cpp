@@ -214,7 +214,7 @@ int main(int argc, char *argv[]){
             dataspace_id = H5Screate_simple(1, dims, NULL);
         }
 
-        sprintf(dset, "omode_%05.i",parms.freq);
+        sprintf(dset, "omode_%05i",parms.freq);
         //sprintf(dset, "omode_%05i",nominal_freq);
         if (vm.count("write")){
             dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
@@ -232,7 +232,7 @@ int main(int argc, char *argv[]){
             if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
         }
 
-        sprintf(dset, "xmode_%05.i",parms.freq);
+        sprintf(dset, "xmode_%05i",parms.freq);
         //sprintf(dset, "xmode_%05i",nominal_freq);
         if (vm.count("write")){
             dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,

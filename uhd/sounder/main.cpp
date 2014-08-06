@@ -254,7 +254,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     }
                             
 	                freq = 1e3*parms.freq;
-                    if (freq < 7e6){
+                    if (freq < XOVER_FREQ){
                         if (verbose) std::cout << "Using antenna A\n";
                         usrp->set_tx_subdev_spec(std::string("A:A"));
                     }
