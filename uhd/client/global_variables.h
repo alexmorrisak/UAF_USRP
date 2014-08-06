@@ -1,3 +1,5 @@
+/*Port number that client and server use*/
+#define HOST_PORT 45001
 /*Definitions of commands that client gives to server*/
 #define SEND 's'
 #define LISTEN 'l'
@@ -6,7 +8,7 @@
 #define PROCESS 'p'
 
 #define MAX_VELOCITY 100 //The maximum unambiguous Doppler velocity. Low number improves computational efficiency
-#define OSR 4 //Factor by which each range gate is oversampled.
+#define OSR 1 //Factor by which each range gate is oversampled.
 #define TX_RATE 500e3 //Sample rate "over-the-wire" between host computer and USRP
 #define RX_RATE 500e3 //Sample rate "over-the-wire" between host computer and USRP
 

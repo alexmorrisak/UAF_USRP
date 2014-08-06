@@ -35,8 +35,6 @@
 #include "utils.hpp"
 #include "../client/global_variables.h"
 
-#define HOST_PORT 45001
-
 namespace po = boost::program_options;
 typedef std::complex<int16_t>  sc16;
 

@@ -26,7 +26,7 @@ int lp_filter(
     float bw,
     int decimrate
 ){
-    int debug = 1;
+    int debug = 0;
     float ntaps = 4*samprate/bw;
     if (verbose) std::cout << "entering lp filter. ntaps: " << ntaps <<std::endl;
     std::vector<std::complex<float> > filter_taps(ntaps);

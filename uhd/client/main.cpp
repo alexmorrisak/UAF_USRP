@@ -13,6 +13,8 @@
 #include <arpa/inet.h> //for inet_addr()
 #include <unistd.h> //for close()
 
+#include <errno.h>
+
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
 
@@ -122,7 +124,7 @@ int main(int argc, char *argv[]){
     //    sprintf(parms.pc_str,"golay10");
     //}
     else{
-        sprintf(parms.pc_str,"golay16");
+        sprintf(parms.pc_str,"golay10");
     }
     std::cout << "Using pcode: " << parms.pc_str << std::endl;
         
@@ -139,17 +141,18 @@ int main(int argc, char *argv[]){
     printf("rxrate: %03.f kHz\n", parms.rxrate_khz);
     printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
 
-    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+    if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
         printf("Error in creating socket\n");
         return 1;
     }
 
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-    serv_addr.sin_port = htons(45001);
+    serv_addr.sin_port = htons(HOST_PORT);
 
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0){
+    if ( (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))) == -1){
         printf("bind failed\n");
+        std::cout << strerror(errno) << std::endl;
         return 1;
     }
     printf ("connected!\n");
@@ -158,7 +161,7 @@ int main(int argc, char *argv[]){
     if (vm.count("write"))
         file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
-    step_freq = (stop_freq+1 - start_freq) / nsteps;
+    step_freq = (stop_freq - start_freq) / nsteps;
     nominal_freq = start_freq;
     ifreq = 0;
     while(nominal_freq < stop_freq){
@@ -211,8 +214,8 @@ int main(int argc, char *argv[]){
             dataspace_id = H5Screate_simple(1, dims, NULL);
         }
 
-        //sprintf(dset, "%05.f",parms.freq);
-        sprintf(dset, "omode_%05i",nominal_freq);
+        sprintf(dset, "omode_%05.i",parms.freq);
+        //sprintf(dset, "omode_%05i",nominal_freq);
         if (vm.count("write")){
             dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -229,7 +232,8 @@ int main(int argc, char *argv[]){
             if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
         }
 
-        sprintf(dset, "xmode_%05i",nominal_freq);
+        sprintf(dset, "xmode_%05.i",parms.freq);
+        //sprintf(dset, "xmode_%05i",nominal_freq);
         if (vm.count("write")){
             dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
