@@ -56,6 +56,10 @@ void transceive(
     std::complex<int16_t>** outdata,
     size_t samps_per_pulse
 ){
+    int debug = 0;
+    if (debug){
+        std::cout << "samps_per_pulse: " << samps_per_pulse << std::endl;
+    }
     //create metadeta tags for transmit streams
     uhd::time_spec_t start_time = usrp->get_time_now() + 0.05;
     uhd::tx_metadata_t md;
@@ -73,7 +77,8 @@ void transceive(
     //create metadata tags for receive stream
     uhd::rx_metadata_t rxmd;
     std::vector<std::complex<int16_t> > buff(samps_per_pulse,0);
-    if (verbose) std::cout << "buff size: " << buff.size() << std::endl;
+    if (verbose) std::cout << "rx buff size: " << buff.size() << std::endl;
+    if (verbose) std::cout << "tx buff size: " << txbuff0->size() << std::endl;
     uhd::stream_cmd_t stream_cmd = uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE;
     stream_cmd.num_samps = npulses*samps_per_pulse;
     stream_cmd.stream_now = false;
@@ -89,6 +94,7 @@ void transceive(
     boost::thread_group rx_threads;
     boost::thread_group tx_threads;
     for (int ipulse=0; ipulse<npulses; ipulse++){
+        if (debug) std::cout << "pulse number: " << ipulse << std::endl;
         for (size_t ichan=0; ichan<usrp->get_rx_num_channels(); ichan++){
          rx_dptr[ichan] = ipulse*samps_per_pulse + outdata[ichan];
         }
@@ -115,7 +121,6 @@ void transceive(
             vec_ptr[0] = &txbuff1->front();
         }
         
-        tx_threads.join_all();
         if (ipulse != npulses-1) {
              tx_threads.create_thread(boost::bind(tx_worker,
                  txbuff0->size(), tx_stream, start_time, vec_ptr[0], 0));
@@ -139,6 +144,7 @@ void transceive(
         
         start_time += float(pulse_time);
     }
+    tx_threads.join_all();
     rx_threads.join_all();
 }
 

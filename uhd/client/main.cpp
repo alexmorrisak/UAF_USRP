@@ -58,7 +58,7 @@ int main(int argc, char *argv[]){
     unsigned int nsteps;
     unsigned int npulses;
     float resolution;
-    unsigned int last_range;
+    unsigned int first_range,last_range;
     int ifreq;
 
     po::options_description desc("Allowed options");
@@ -71,11 +71,13 @@ int main(int argc, char *argv[]){
         ("nsteps", po::value<unsigned int>(&nsteps)->default_value(1),
             "Number of frequencies to step through between start and stop")
         ("npulses", po::value<unsigned int>(&npulses)->default_value(128),
-            "Number of pulses in a single frequency sounding")
-        ("resolution", po::value<float>(&resolution)->default_value(10),
+            "Number of pulses in each integration period")
+        ("resolution", po::value<float>(&resolution)->default_value(5),
             "Desired range resolution in km")
         ("last-range", po::value<unsigned int>(&last_range)->default_value(750),
-            "Desired range resolution in km")
+            "Maximum unambiguous range in km")
+        ("first-range", po::value<unsigned int>(&first_range)->default_value(50),
+            "First receivable range in km")
         ("write","write to file")
     ;
     po::variables_map vm;
@@ -86,28 +88,49 @@ int main(int argc, char *argv[]){
         std::cout << desc << "\n";
         return 1;
     }
-            
+
     parms.txrate_khz = 500;
     parms.rxrate_khz = 500;
     parms.npulses = npulses;
 
     size_t temp_symboltime_usec = resolution / 1.5e-1;
-    size_t temp_dmrate = (size_t) ceil(temp_symboltime_usec * parms.rxrate_khz / 2000);
-    if (temp_dmrate%2 == 1) temp_dmrate -= 1;
-    parms.symboltime_usec = 2000*temp_dmrate/parms.rxrate_khz;
+    size_t temp_dmrate = (size_t) ceil(temp_symboltime_usec * parms.rxrate_khz / (OSR*1000));
+    //if (temp_dmrate%2 == 1) temp_dmrate -= 1;
+    while (temp_dmrate%OSR != 0) temp_dmrate -= 1;
+    parms.symboltime_usec = OSR*1000*temp_dmrate/parms.rxrate_khz;
     //parms.symboltime_usec = 30;
 
-    size_t temp_pfactor = (size_t) ceil(last_range / 1.5e-1 / parms.symboltime_usec);
+    size_t temp_pfactor = (size_t) ceil(2*last_range / 3.0e-1 / parms.symboltime_usec);
     parms.pulsetime_usec = temp_pfactor * parms.symboltime_usec;
 
     std::cout << "Using pulse time: " << parms.pulsetime_usec << std::endl;
     std::cout << "symbol time: " << parms.symboltime_usec << std::endl;
     std::cout << "Using range resolution: " << 1.5e-1*parms.symboltime_usec << std::endl;
 
+    size_t max_txtime_usec = (size_t) floor(2*first_range / 3.0e-1);
+    size_t max_code_length = (size_t) floor(max_txtime_usec / parms.symboltime_usec);
+    if (max_code_length < 4){
+        sprintf(parms.pc_str,"rect");
+    }
+    else if (max_code_length < 8){
+        sprintf(parms.pc_str,"golay4");
+    }
+    else if (max_code_length < 10){
+        sprintf(parms.pc_str,"golay8");
+    }
+    //else if (max_code_length < 16){
+    //    sprintf(parms.pc_str,"golay10");
+    //}
+    else{
+        sprintf(parms.pc_str,"golay16");
+    }
+    std::cout << "Using pcode: " << parms.pc_str << std::endl;
+        
+
     //parms.pulsetime_usec = 5000;
 
-    sprintf(parms.pc_str,"golay8");
-    parms.nsamps_per_pulse = parms.pulsetime_usec*parms.rxrate_khz/1000;
+    //sprintf(parms.pc_str,"golay8");
+    parms.nsamps_per_pulse = (size_t) (1e-6*parms.pulsetime_usec*RX_RATE);
     int datalen;
 
     printf("\nmsg values\n");

@@ -36,6 +36,8 @@
 #include "../client/global_variables.h"
 
 #define HOST_PORT 45001
+#define TX_RATE 500e3 
+#define RX_RATE 500e3
 
 namespace po = boost::program_options;
 typedef std::complex<int16_t>  sc16;
@@ -81,7 +83,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     std::vector<float> periodogram;
 
     //transmit variables
-    std::string tx_subdev="A:AB";
+    std::string tx_subdev="A:A";
     unsigned int bufflen;
     unsigned int samps_per_sym;
     boost::thread_group transmit_thread;
@@ -214,14 +216,24 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     rval = recv_data(msgsock, &parms, sizeof(parms));
                     if (verbose) printf("msg values\n");
                     if (verbose) printf("freq: %f\n", parms.freq);
-                    if (verbose) printf("txrate: %i\n", parms.txrate_khz);
-                    if (verbose) printf("rxrate: %i\n", parms.rxrate_khz);
+                    //if (verbose) printf("txrate: %i\n", parms.txrate_khz);
+                    //if (verbose) printf("rxrate: %i\n", parms.rxrate_khz);
                     if (verbose) std::cout << parms.pc_str << std::endl;
                     if (strcmp(parms.pc_str,"barker13") == 0){
                         if (verbose) std::cout << "using barker 13 pcode\n";
                         pcode0 = BARKER_13;
                         pcode1 = BARKER_13;
                     } 
+                    else if (strcmp(parms.pc_str, "golay16") == 0){
+                        if (verbose) std::cout << "using golay 16 pcode\n";
+                        pcode0 = GOLAY_16_0;
+                        pcode1 = GOLAY_16_1;
+                    }
+                    else if (strcmp(parms.pc_str, "golay10") == 0){
+                        if (verbose) std::cout << "using golay 10 pcode\n";
+                        pcode0 = GOLAY_10_0;
+                        pcode1 = GOLAY_10_1;
+                    }
                     else if (strcmp(parms.pc_str, "golay8") == 0){
                         if (verbose) std::cout << "using golay 8 pcode\n";
                         pcode0 = GOLAY_8_0;
@@ -249,8 +261,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 	                //freq = 1.e3*parms.freq_khz;
 	                //tx_rate = parms.txrate;
 	                //rx_rate = parms.rxrate;
-	                if (verbose) std::cout << "Using options: \n" << 
-	                	freq << "\n" << parms.txrate_khz << "\n" << rx_rate << std::endl;
+	                //if (verbose) std::cout << "Using options: \n" << 
+	                //	freq << "\n" << parms.txrate_khz << "\n" << rx_rate << std::endl;
 
 
 	                //configure the USRP according to the arguments from the FIFO
@@ -258,18 +270,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         usrp->set_rx_freq(freq,i);
                     }
                     usrp->set_tx_freq(freq);
-                    usrp->set_rx_rate(1.e3*parms.rxrate_khz);
-                    usrp->set_tx_rate(1.e3*parms.txrate_khz);
+                    usrp->set_rx_rate(RX_RATE);
+                    usrp->set_tx_rate(TX_RATE);
 	                
                     if (verbose) std::cout << boost::format("Actual RX Freq: %f MHz...") % (usrp->get_rx_freq()/1e6) << "\n" << std::endl;
 
 	                if (new_seq_flag == 1){
-	                	if (verbose) std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % (parms.txrate_khz) << std::endl;
-	                	usrp->set_tx_rate(1.e3*parms.txrate_khz);
+	                	//if (verbose) std::cout << boost::format("Requesting Tx sample rate: %f Ksps...") % TX_RATE / 1e3 << std::endl;
+	                	usrp->set_tx_rate(TX_RATE);
 	                	if (verbose) std::cout << boost::format("Actual TX Rate: %f Ksps...") % (usrp->get_tx_rate()/1e3) << std::endl << std::endl;
 	                	
-	                	if (verbose) std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % (parms.rxrate_khz) << std::endl;
-	                	usrp->set_rx_rate(1.e3*parms.rxrate_khz);
+	                	//if (verbose) std::cout << boost::format("Requesting Rx sample rate: %f Ksps...") % RX_RATE / 1e3 << std::endl;
+	                	usrp->set_rx_rate(RX_RATE);
 	                	if (verbose) std::cout << boost::format("Actual RX Rate: %f Ksps...") % (usrp->get_rx_rate()/1e3) << std::endl << std::endl;
 	                }
 	                new_seq_flag = 0;
@@ -279,7 +291,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                     //Prepare lp filter taps for filtering the tx samples
                     //samps_per_sym = (unsigned int) (parms.symboltime * parms.txrate);
-                    samps_per_sym = parms.symboltime_usec * parms.txrate_khz / 1000;
+                    //samps_per_sym = parms.symboltime_usec * parms.txrate_khz / 1000;
+                    samps_per_sym = parms.symboltime_usec * TX_RATE / 1e6;
                     ntaps = 4*samps_per_sym;
                     filter_taps.resize(ntaps,0);
                     txbw = 1/(2.e-6*parms.symboltime_usec);
@@ -333,10 +346,16 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         //printf("tx_filt_buff %i: %i, %i\n", i, tx_filt_buff[i].real(), tx_filt_buff[i].imag());
                     }
 
-                    tx_ontime = (float) tx_filt_buff0.size() / (1.e3*parms.txrate_khz) + 100e-6;
-                    tx_ontime_usec = tx_filt_buff0.size() / parms.txrate_khz / 1000 + 50;
-                    tx_filt_buff0.resize((parms.pulsetime_usec * parms.txrate_khz)/1000, 0);
-                    tx_filt_buff1.resize((parms.pulsetime_usec * parms.txrate_khz)/1000, 0);
+                    //tx_ontime = (float) tx_filt_buff0.size() / (1.e3*parms.txrate_khz) + 100e-6;
+                    tx_ontime = (float) tx_filt_buff0.size() / (TX_RATE) + 100e-6;
+                    if (debug) std::cout << "tx_ontime: " << tx_ontime << std::endl;
+                    //tx_ontime_usec = tx_filt_buff0.size() / TX_RATE / 1000 + 50;
+                    tx_filt_buff0.resize((parms.pulsetime_usec * 1e-6*TX_RATE), 0);
+                    tx_filt_buff1.resize((parms.pulsetime_usec * 1e-6*TX_RATE), 0);
+                    if (verbose) std::cout << "pulsetime_usec: " << parms.pulsetime_usec << std::endl;
+                    if (verbose) std::cout << "TX_RATE: " << TX_RATE << std::endl;
+                    if (verbose) std::cout << "tx_filt_buffx size: " << parms.pulsetime_usec * TX_RATE << std::endl;
+                    if (verbose) std::cout << "tx_filt_buffx size: " << (size_t) (1.e-6*parms.pulsetime_usec * TX_RATE) << std::endl;
 
                     //prepare rx information
                     ptime_eff = 3e8 / (2*MAX_VELOCITY*freq);
@@ -349,7 +368,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     }
                     if (verbose) printf("nave: %i\n", nave);
                     ptime_eff = nave*parms.pulsetime_usec;
-                    if (verbose) printf("ptime_eff: %i usec\n", ptime_eff);
+                    if (verbose) printf("ptime_eff: %f usec\n", ptime_eff);
 
                     slowdim = parms.npulses/nave;
                     if (verbose) printf("slowdim: %i\n", slowdim);
@@ -389,7 +408,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                 case PROCESS:
                     if (verbose) std::cout << "Starting processing\n";
-                    dmrate = parms.symboltime_usec * parms.rxrate_khz / 2000;
+                    //dmrate = parms.symboltime_usec * parms.rxrate_khz / (OSR*1000);
+                    dmrate = (size_t) (1.e-6*parms.symboltime_usec * RX_RATE / OSR);
                     fastdim = parms.nsamps_per_pulse/dmrate;
                     bandwidth = 1/(2.e-6*parms.symboltime_usec);
 	    	        if (verbose) printf("symbol time: %i usec\n", parms.symboltime_usec);
@@ -406,6 +426,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     outvec_ptrs[1][0].resize(slowdim);
                     outvec_ptrs[1][1].resize(slowdim);
                     for (int i=0; i<slowdim; i++){
+                        outvecs[0][0][i].clear();
+                        outvecs[0][1][i].clear();
+                        outvecs[1][0][i].clear();
+                        outvecs[1][1][i].clear();
                         outvecs[0][0][i].resize(parms.nsamps_per_pulse,0);
                         outvecs[0][1][i].resize(parms.nsamps_per_pulse,0);
                         outvecs[1][0][i].resize(parms.nsamps_per_pulse,0);
@@ -415,6 +439,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         outvec_ptrs[1][0][i] = &outvecs[1][0][i].front();
                         outvec_ptrs[1][1][i] = &outvecs[1][1][i].front();
                     }
+                    //for (int i=0; i<rawvecs[1].size(); i++){
+                    //    std::cout << i << " " << rawvecs[1][i] << std::endl;
+                    //}
                     for (int i=0; i<slowdim; i++){
                         for (int j=0; j<nave; j++){
                             for (int k=0; k<parms.nsamps_per_pulse; k++){
@@ -455,12 +482,17 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                                     //        << std::endl;
                                 }
                             }
-                            //if (j == nave-1) {
-                            //    for (int k=0; k<parms.nsamps_per_pulse; k++){
-                            //        std::cout << k << " " << outvecs0[i][k] << "\t";
-                            //        std::cout << outvecs1[i][k] << std::endl;
-                            //    }
-                            //}
+                            if (debug){
+                                //if (j == nave-1 || j == nave-2) {
+                                    for (int k=0; k<parms.nsamps_per_pulse; k++){
+                                        std::cout << j << " " << k << " ";
+                                        std::cout << outvecs[0][0][i][k] << "\t";
+                                        std::cout << outvecs[0][1][i][k] << "\t";
+                                        std::cout << outvecs[1][0][i][k] << "\t";
+                                        std::cout << outvecs[1][1][i][k] << std::endl;
+                                    }
+                                //}
+                            }
                         }
                     }
 
@@ -489,7 +521,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                                 filtvec_ptrs[mode][pcode],
                                 slowdim,
                                 parms.nsamps_per_pulse,
-                                1.e3*parms.rxrate_khz,
+                                RX_RATE,
                                 bandwidth,
                                 dmrate);
                         }

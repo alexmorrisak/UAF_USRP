@@ -64,16 +64,16 @@ for i in range(0,2*nfreqs):
     image_x[:,row] = arr
     row += 1
 
-ave_o = np.average(image_o);
-ave_x = np.average(image_x);
-print ave_o
-print ave_x
-for i in range(0,nfreqs):
-	image_o[:,i] /= np.median(image_o[:,i])
-	image_x[:,i] /= np.median(image_x[:,i])
+#ave_o = np.average(image_o);
+#ave_x = np.average(image_x);
+#print ave_o
+#print ave_x
+#for i in range(0,nfreqs):
+	#image_o[:,i] /= np.median(image_o[:,i])
+	#image_x[:,i] /= np.median(image_x[:,i])
 	#image[:,i] /= np.average(image[:,i])
 
-ext = [minfreq, maxfreq, -100, 1.5e5 /options.prf]
+ext = [minfreq, maxfreq, 0, 1.5e5 /options.prf]
 
 image_o = np.flipud(10*np.log10(image_o))
 image_x = np.flipud(10*np.log10(image_x))
