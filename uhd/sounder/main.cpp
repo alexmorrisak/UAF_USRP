@@ -211,7 +211,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                     rval = recv_data(msgsock, &parms, sizeof(parms));
                     if (verbose) printf("msg values\n");
-                    if (verbose) printf("freq: %f\n", parms.freq);
+                    if (verbose) printf("freq: %i\n", parms.freq);
                     //if (verbose) printf("txrate: %i\n", parms.txrate_khz);
                     //if (verbose) printf("rxrate: %i\n", parms.rxrate_khz);
                     if (verbose) std::cout << parms.pc_str << std::endl;

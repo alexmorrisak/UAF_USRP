@@ -44,8 +44,16 @@ int main(int argc, char *argv[]){
     //std::cout << rawtime << std::endl;
     char fname[80];
 
-    //Variables for testing
+    //Data storage variables
     std::vector<float> rxdata[2];
+    std::vector<std::vector<float> > omode;
+    std::vector<std::vector<float> > xmode;
+    std::vector<float*> omode_ptrs;
+    std::vector<float*> xmode_ptrs;
+    //std::vector<uint32_t> ranges;
+    std::vector<uint32_t> frequencies;
+
+    //Variables for testing
     std::vector<float> test;
 
     //variables for clear frequency search
@@ -100,7 +108,7 @@ int main(int argc, char *argv[]){
     //if (temp_dmrate%2 == 1) temp_dmrate -= 1;
     while (temp_dmrate%OSR != 0) temp_dmrate -= 1;
     parms.symboltime_usec = OSR*1000*temp_dmrate/parms.rxrate_khz;
-    //parms.symboltime_usec = 30;
+
 
     size_t temp_pfactor = (size_t) ceil(2*last_range / 3.0e-1 / parms.symboltime_usec);
     parms.pulsetime_usec = temp_pfactor * parms.symboltime_usec;
@@ -108,6 +116,12 @@ int main(int argc, char *argv[]){
     std::cout << "Using pulse time: " << parms.pulsetime_usec << std::endl;
     std::cout << "symbol time: " << parms.symboltime_usec << std::endl;
     std::cout << "Using range resolution: " << 1.5e-1*parms.symboltime_usec << std::endl;
+
+    //ranges.resize(OSR*parms.pulsetime_usec/parms.symboltime_usec);
+    //for (size_t i=0; i<ranges.size(); i++){
+    //    ranges[i] = first_range + i*(last_range-first_range)/ranges.size();
+    //    std::cout << "range " << i << " " << ranges[i] << std::endl;
+    //}
 
     size_t max_txtime_usec = (size_t) floor(2*first_range / 3.0e-1);
     size_t max_code_length = (size_t) floor(max_txtime_usec / parms.symboltime_usec);
@@ -165,110 +179,140 @@ int main(int argc, char *argv[]){
     nominal_freq = start_freq;
     ifreq = 0;
     while(nominal_freq < stop_freq){
-        //parms.freq = 1e6 + i*100e3;
-
-        /* Get the spectrum so that we can get the quietest frequency*/
-        usrpmsg = 'l';
+        /* Get the spectrum and then select the quietest frequency*/
+        usrpmsg = LISTEN;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
-        spectrum.resize(200);
-        spect_parms.start_freq_khz = nominal_freq-100;
-        spect_parms.end_freq_khz = nominal_freq+100;
+        size_t search_range = (int) step_freq / 2;
+        if (search_range%2 !=0) search_range-=1;
+        spectrum.resize(search_range);
+        spect_parms.start_freq_khz = nominal_freq-search_range/2;
+        spect_parms.end_freq_khz = nominal_freq+search_range/2;
         spect_parms.bandwidth_khz = 10;
         send(sockfd, &spect_parms, sizeof(parms), 0);
-        recv(sockfd, &spectrum.front(), 200*sizeof(float), 0);
+        recv(sockfd, &spectrum.front(), search_range*sizeof(float), 0);
         min_inx = 0;
         for (int i=1; i<spectrum.size(); i++){
             if (spectrum[i] < spectrum[min_inx]) min_inx = i;
         }
         parms.freq = min_inx + spect_parms.start_freq_khz;
+        frequencies.push_back(parms.freq);
+        std::cout << "freqs: " << frequencies[ifreq] << std::endl;
         rval = recv(sockfd, &status, sizeof(int),0);
-        //printf("rx status: %i\n", status);
 
         /* Perform the sounding */
-        usrpmsg = 's';
+        usrpmsg = SEND;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         send(sockfd, &parms, sizeof(parms), 0);
         rval = recv(sockfd, &status, sizeof(int),0);
-        //printf("rx status: %i\n", status);
 
         /* Process the data */
-        usrpmsg = 'p';
+        usrpmsg = PROCESS;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         rval = recv(sockfd, &status, sizeof(int),0);
-        //printf("process status: %i\n", status);
 
-        /* Get the data */
-        usrpmsg = 'd';
+        /* Get the data and append it to running data structure*/
+        usrpmsg = GET_DATA;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         recv(sockfd, &datalen, sizeof(datalen), 0);
-        rxdata[0].resize(datalen);
-        rxdata[1].resize(datalen);
-        test.resize(datalen,100);
-        recv(sockfd, &rxdata[0].front(), rxdata[0].size()*sizeof(float), 0);
-        recv(sockfd, &rxdata[1].front(), rxdata[1].size()*sizeof(float), 0);
-
-        /* Write the data to hdf5 file */
-        dims[0] = datalen;
-        dims[1] = 1;
-        if (vm.count("write")){
-            dataspace_id = H5Screate_simple(1, dims, NULL);
-        }
-
-        sprintf(dset, "omode_%05i",parms.freq);
-        //sprintf(dset, "omode_%05i",nominal_freq);
-        if (vm.count("write")){
-            dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        }
-
-        if (vm.count("write")){
-            eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                &rxdata[0].front());
-            if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
-        }
-
-        if (vm.count("write")){
-            eval =H5Dclose(dataset_id);
-            if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
-        }
-
-        sprintf(dset, "xmode_%05i",parms.freq);
-        //sprintf(dset, "xmode_%05i",nominal_freq);
-        if (vm.count("write")){
-            dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-        }
-
-        if (vm.count("write")){
-            eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-                &rxdata[1].front());
-            if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
-        }
-
-        if (vm.count("write")){
-            eval =H5Dclose(dataset_id);
-            if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
-        }
+        rxdata[0].resize(rxdata[0].size()+datalen);
+        rxdata[1].resize(rxdata[1].size()+datalen);
+        recv(sockfd, &rxdata[0].front() + (ifreq*datalen), datalen*sizeof(float), 0);
+        recv(sockfd, &rxdata[1].front() + (ifreq*datalen), datalen*sizeof(float), 0);
 
         printf("Sounding %i of %i complete (%i kHz)\n", ifreq+1, nsteps, parms.freq);
-        //for (size_t i=0; i<rxdata.size(); i++){
-        //    printf("%lu: %.1f\n",i,30+10*log10(rxdata[i]));
-        //}
         nominal_freq += step_freq;
-	ifreq++;
+	    ifreq++;
     }
-
+    /* Write the data to hdf5 file */
     if (vm.count("write")){
+        /* Create 2-D dataset for omode and xmode powers.*/
+        dims[0] = nsteps;
+        dims[1] = datalen;
+        dataspace_id = H5Screate_simple(2, dims, NULL);
+
+        /* Write omode data to file */
+        sprintf(dset, "Omode");
+        dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+            &rxdata[0].front());
+            //&omode[0].front());
+        if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+
+        eval =H5Dclose(dataset_id);
+        if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
+
         eval =H5Sclose(dataspace_id);
         if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
-    }
 
-    if (vm.count("write")){
+        /* Write xmode data to file */
+        dataspace_id = H5Screate_simple(2, dims, NULL);
+
+        sprintf(dset, "Xmode");
+        dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+            &rxdata[1].front());
+        if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+
+        eval =H5Dclose(dataset_id);
+        if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
+
+        eval =H5Sclose(dataspace_id);
+        if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
+
+        /* Create 1-D dataspace for frequency values */
+        dims[0] = nsteps;
+        dataspace_id = H5Screate_simple(1, dims, NULL);
+
+        /* Write frequency values to file */
+        sprintf(dset, "Frequencies");
+        dataset_id = H5Dcreate2(file_id, dset, H5T_STD_U32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        eval =H5Dwrite(dataset_id, H5T_NATIVE_UINT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+            &frequencies.front());
+        if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+
+        eval =H5Dclose(dataset_id);
+        if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
+
+        eval =H5Sclose(dataspace_id);
+        if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
+
+        ///* Create 1-D dataspace for range values */
+        //dims[0] = datalen;
+        //dataspace_id = H5Screate_simple(1, dims, NULL);
+
+        ///* Write range values to file */
+        //sprintf(dset, "Ranges");
+        //dataset_id = H5Dcreate2(file_id, dset, H5T_STD_U32BE, dataspace_id,
+        //    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        //eval =H5Dwrite(dataset_id, H5T_NATIVE_UINT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+        //    &ranges.front());
+        //if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+
+        //eval =H5Dclose(dataset_id);
+        //if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
+
+        //eval =H5Sclose(dataspace_id);
+        //if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
+
+
+
+
+
+
+
+
         eval =H5Fclose(file_id);
         if (eval) std::cerr << "Error closing file: " << fname << std::endl;
     }
 
-    /* Close the sounding server */
+    /* Disconnect from sounding server */
     usrpmsg = 'x';
     send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
     close(sockfd);
