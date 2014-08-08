@@ -76,6 +76,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     std::string tx_subdev="A:A";
     unsigned int bufflen;
     unsigned int samps_per_sym;
+    unsigned int symboltime_usec, ipp_usec, max_code_length;
     boost::thread_group transmit_thread;
     std::vector<std::complex<float> > tx_raw_buff0;
     std::vector<std::complex<float> > tx_raw_buff1;
@@ -94,6 +95,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     std::vector<std::vector<std::complex<int16_t> > > rawvecs;
     std::vector<std::complex<int16_t> *> rawvec_ptrs;
     float ptime_eff;
+    unsigned int nsamps_per_pulse;
 
     //data processing variables
     int dmrate, slowdim, fastdim;
@@ -101,6 +103,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     size_t first_inx;
     size_t filter_delay;
     float bandwidth;
+    unsigned int osr;
 
     std::vector<std::vector<std::complex<float> > > outvecs[2][2];
     std::vector<std::complex<float> *> outvec_ptrs[2][2];
@@ -117,7 +120,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     //socket-related variables
     int sock, msgsock, rval, rfds, efds;
     int msg;
-    struct soundingParms parms;
+    struct soundingParms2 parms;
     struct periodogramParms lparms;
     char usrpmsg;
 
@@ -176,7 +179,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     break;
                 case LISTEN:
                     if (verbose) printf("Starting Listening.\n");
-                    rval = recv_data(msgsock, &lparms, sizeof(parms));
+                    rval = recv_data(msgsock, &lparms, sizeof(lparms));
                     center_freq_khz = (lparms.end_freq_khz + lparms.start_freq_khz) / 2;
                     span_khz = lparms.end_freq_khz - lparms.start_freq_khz;
                     //if (span_khz > 400){
@@ -207,50 +210,57 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     if (verbose) printf("Starting sounding.\n");
 
                     rval = recv_data(msgsock, &parms, sizeof(parms));
-                    if (verbose) printf("msg values\n");
-                    if (verbose) printf("freq: %i\n", parms.freq);
-                    //if (verbose) printf("txrate: %i\n", parms.txrate_khz);
-                    //if (verbose) printf("rxrate: %i\n", parms.rxrate_khz);
-                    if (verbose) std::cout << parms.pc_str << std::endl;
-                    if (strcmp(parms.pc_str,"barker13") == 0){
-                        if (verbose) std::cout << "using barker 13 pcode\n";
-                        pcode0 = BARKER_13;
-                        pcode1 = BARKER_13;
-                    } 
-                    else if (strcmp(parms.pc_str, "golay16") == 0){
-                        if (verbose) std::cout << "using golay 16 pcode\n";
-                        pcode0 = GOLAY_16_0;
-                        pcode1 = GOLAY_16_1;
+
+                    osr = parms.over_sample_rate;
+
+                    symboltime_usec = parms.range_res_km / 1.5e-1;
+                    dmrate = (size_t) ceil(symboltime_usec * RX_RATE / (osr*1e6));
+                    //if (dmrate%osr == 1) dmrate-=1;
+                    //while (dmrate%osr != 0) dmrate -= 1;
+                    symboltime_usec = osr*1e6*dmrate/RX_RATE;
+
+                    std::cout << "symbol time: " << symboltime_usec << std::endl;
+                    
+                    ipp_usec = (size_t) ceil(2*parms.last_range_km / 3.0e-1 / symboltime_usec);
+                    ipp_usec *= symboltime_usec;
+
+                    nsamps_per_pulse = (unsigned int) (1.e-6*ipp_usec*RX_RATE);
+                    
+                    std::cout << "oversample rate: " << osr << std::endl;
+                    std::cout << "dmrate: " << dmrate << std::endl;
+                    std::cout << "nsamps per pulse: " << nsamps_per_pulse << std::endl;
+                    std::cout << "Using pulse time: " << ipp_usec << std::endl;
+                    std::cout << "Using range resolution: " << 1.5e-1*symboltime_usec << std::endl;
+                    
+                    
+                    max_code_length = (size_t) floor(2*parms.first_range_km / 3.0e-1 / symboltime_usec);
+                    std::cout << "max code length: " << max_code_length << std::endl;
+                    if (max_code_length < 4){
+                        pcode0=RECT;
+                        pcode1=RECT;
                     }
-                    else if (strcmp(parms.pc_str, "golay10") == 0){
-                        if (verbose) std::cout << "using golay 10 pcode\n";
-                        pcode0 = GOLAY_10_0;
-                        pcode1 = GOLAY_10_1;
+                    else if (max_code_length < 8){
+                        pcode0=GOLAY_4_0;
+                        pcode1=GOLAY_4_1;
                     }
-                    else if (strcmp(parms.pc_str, "golay8") == 0){
-                        if (verbose) std::cout << "using golay 8 pcode\n";
-                        pcode0 = GOLAY_8_0;
-                        pcode1 = GOLAY_8_1;
+                    else if (max_code_length < 10){
+                        pcode0=GOLAY_8_0;
+                        pcode1=GOLAY_8_1;
                     }
-                    else if (strcmp(parms.pc_str, "golay4") == 0){
-                        if (verbose) std::cout << "using golay 4 pcode\n";
-                        pcode0 = GOLAY_4_0;
-                        pcode1 = GOLAY_4_1;
+                    else if (max_code_length < 16){
+                        pcode0=GOLAY_10_0;
+                        pcode1=GOLAY_10_1;
                     }
-                    else if (strcmp(parms.pc_str, "rect") == 0){
-                        if (verbose) std::cout << "using no pcode\n";
-                        pcode0 = RECT;
-                        pcode1 = RECT;
+                    else{
+                        pcode0=GOLAY_16_0;
+                        pcode1=GOLAY_16_1;
                     }
-                    else {
-                        std::cerr << "invalid pulse code requested\n";
-                        return 1;
-                    }
+
                     for (int i=0; i<pcode0.size(); i++){
                         if (verbose) std::cout << pcode0[i] << " " << pcode1[i] << std::endl;
                     }
                             
-	                freq = 1e3*parms.freq;
+	                freq = 1e3*parms.freq_khz;
                     if (freq < XOVER_FREQ){
                         if (verbose) std::cout << "Using antenna A\n";
                         usrp->set_tx_subdev_spec(std::string("A:A"));
@@ -284,10 +294,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //Prepare lp filter taps for filtering the tx samples
                     //samps_per_sym = (unsigned int) (parms.symboltime * parms.txrate);
                     //samps_per_sym = parms.symboltime_usec * parms.txrate_khz / 1000;
-                    samps_per_sym = parms.symboltime_usec * TX_RATE / 1e6;
+                    samps_per_sym = symboltime_usec * TX_RATE / 1e6;
                     ntaps = 4*samps_per_sym;
                     filter_taps.resize(ntaps,0);
-                    txbw = 1/(2.e-6*parms.symboltime_usec);
+                    txbw = 1/(2.e-6*symboltime_usec);
                     txsamprate = usrp->get_tx_rate();
                     for (int i=0; i<ntaps; i++){
                         double x=2*(2*M_PI*((float)i/ntaps)-M_PI);
@@ -311,6 +321,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
 
                     bufflen = pcode0.size()* samps_per_sym;
+                    tx_raw_buff0.clear();
+                    tx_raw_buff1.clear();
                     tx_raw_buff0.resize(bufflen+ntaps,0);
                     tx_raw_buff1.resize(bufflen+ntaps,0);
                     for (size_t isym=0; isym<pcode0.size(); isym++){
@@ -342,33 +354,33 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     tx_ontime = (float) tx_filt_buff0.size() / (TX_RATE) + 100e-6;
                     if (debug) std::cout << "tx_ontime: " << tx_ontime << std::endl;
                     //tx_ontime_usec = tx_filt_buff0.size() / TX_RATE / 1000 + 50;
-                    tx_filt_buff0.resize((parms.pulsetime_usec * 1e-6*TX_RATE), 0);
-                    tx_filt_buff1.resize((parms.pulsetime_usec * 1e-6*TX_RATE), 0);
-                    if (verbose) std::cout << "pulsetime_usec: " << parms.pulsetime_usec << std::endl;
+                    tx_filt_buff0.resize((ipp_usec * 1e-6*TX_RATE), 0);
+                    tx_filt_buff1.resize((ipp_usec * 1e-6*TX_RATE), 0);
+                    if (verbose) std::cout << "ipp_usec: " << ipp_usec << std::endl;
                     if (verbose) std::cout << "TX_RATE: " << TX_RATE << std::endl;
-                    if (verbose) std::cout << "tx_filt_buffx size: " << parms.pulsetime_usec * TX_RATE << std::endl;
-                    if (verbose) std::cout << "tx_filt_buffx size: " << (size_t) (1.e-6*parms.pulsetime_usec * TX_RATE) << std::endl;
+                    if (verbose) std::cout << "tx_filt_buffx size: " << ipp_usec * TX_RATE << std::endl;
+                    if (verbose) std::cout << "tx_filt_buffx size: " << (size_t) (1.e-6*ipp_usec * TX_RATE) << std::endl;
 
                     //prepare rx information
                     ptime_eff = 3e8 / (2*MAX_VELOCITY*freq);
                     if (verbose) printf("ptime_eff: %f\n", ptime_eff);
                     nave = 2;
                     ptime_eff /= 2;
-                    while(ptime_eff > 1.e-6*parms.pulsetime_usec && parms.npulses/nave > 1){
+                    while(ptime_eff > 1.e-6*ipp_usec && parms.num_pulses/nave > 1){
                         nave *= 2;
                         ptime_eff /= 2;
                     }
                     if (verbose) printf("nave: %i\n", nave);
-                    ptime_eff = nave*parms.pulsetime_usec;
+                    ptime_eff = nave*1e-6*ipp_usec;
                     if (verbose) printf("ptime_eff: %f usec\n", ptime_eff);
 
-                    slowdim = parms.npulses/nave;
+                    slowdim = parms.num_pulses/nave;
                     if (verbose) printf("slowdim: %i\n", slowdim);
 
                     rawvecs.resize(usrp->get_rx_num_channels());
                     rawvec_ptrs.resize(usrp->get_rx_num_channels());
                     for (size_t i=0; i<rawvecs.size(); i++){
-                        rawvecs[i].resize(parms.nsamps_per_pulse*parms.npulses);
+                        rawvecs[i].resize(nsamps_per_pulse*parms.num_pulses);
                         rawvec_ptrs[i] = &rawvecs[i].front();
                     }
 
@@ -376,13 +388,13 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         usrp,
                         tx_stream,
                         rx_stream,
-                        parms.npulses,
-                        1.e-6*parms.pulsetime_usec,
+                        parms.num_pulses,
+                        1.e-6*ipp_usec,
                         &tx_filt_buff0,
                         &tx_filt_buff1,
                         tx_ontime,
                         &rawvec_ptrs.front(),
-                        parms.nsamps_per_pulse
+                        nsamps_per_pulse
                         );
 
 
@@ -400,11 +412,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                 case PROCESS:
                     if (verbose) std::cout << "Starting processing\n";
-                    //dmrate = parms.symboltime_usec * parms.rxrate_khz / (OSR*1000);
-                    dmrate = (size_t) (1.e-6*parms.symboltime_usec * RX_RATE / OSR);
-                    fastdim = parms.nsamps_per_pulse/dmrate;
-                    bandwidth = 1/(2.e-6*parms.symboltime_usec);
-	    	        if (verbose) printf("symbol time: %i usec\n", parms.symboltime_usec);
+                    //dmrate = parms.symboltime_usec * parms.rxrate_khz / (osr*1000);
+                    //dmrate = (size_t) (1.e-6*symboltime_usec * RX_RATE / osr);
+                    fastdim = nsamps_per_pulse/dmrate;
+                    bandwidth = 1/(2.e-6*symboltime_usec);
+	    	        if (verbose) printf("symbol time: %i usec\n", symboltime_usec);
                     if (verbose) printf("fastdim: %i\n",fastdim);
                     if (verbose) printf("dmrate: %i\n", dmrate);
                     if (verbose) printf("bandwidth: %f\n", bandwidth);
@@ -422,10 +434,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         outvecs[0][1][i].clear();
                         outvecs[1][0][i].clear();
                         outvecs[1][1][i].clear();
-                        outvecs[0][0][i].resize(parms.nsamps_per_pulse,0);
-                        outvecs[0][1][i].resize(parms.nsamps_per_pulse,0);
-                        outvecs[1][0][i].resize(parms.nsamps_per_pulse,0);
-                        outvecs[1][1][i].resize(parms.nsamps_per_pulse,0);
+                        outvecs[0][0][i].resize(nsamps_per_pulse,0);
+                        outvecs[0][1][i].resize(nsamps_per_pulse,0);
+                        outvecs[1][0][i].resize(nsamps_per_pulse,0);
+                        outvecs[1][1][i].resize(nsamps_per_pulse,0);
                         outvec_ptrs[0][0][i] = &outvecs[0][0][i].front();
                         outvec_ptrs[0][1][i] = &outvecs[0][1][i].front();
                         outvec_ptrs[1][0][i] = &outvecs[1][0][i].front();
@@ -436,18 +448,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //}
                     for (int i=0; i<slowdim; i++){
                         for (int j=0; j<nave; j++){
-                            for (int k=0; k<parms.nsamps_per_pulse; k++){
+                            for (int k=0; k<nsamps_per_pulse; k++){
                                 if (j%2 == 0){
                                     outvecs[0][0][i][k] += 
                                         std::complex<int16_t>(1,0) * 
-                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
+                                        (rawvecs[0][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k] + 
                                             std::complex<int16_t>(0,1) * 
-                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
+                                            rawvecs[1][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k]);
                                     outvecs[1][0][i][k] += 
                                         std::complex<int16_t>(1,0) * 
-                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] - 
+                                        (rawvecs[0][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k] - 
                                             std::complex<int16_t>(0,1) * 
-                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
+                                            rawvecs[1][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k]);
                                     //std::cout << j << " " <<
                                     //    std::complex<int16_t>(1,0) * 
                                     //    (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
@@ -458,25 +470,25 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                                 if (j%2 == 1){
                                     outvecs[0][1][i][k] += 
                                         std::complex<int16_t>(1,0) * 
-                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
+                                        (rawvecs[0][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k] + 
                                             std::complex<int16_t>(0,1) * 
-                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
+                                            rawvecs[1][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k]);
                                     outvecs[1][1][i][k] += 
                                         std::complex<int16_t>(1,0) * 
-                                        (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] - 
+                                        (rawvecs[0][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k] - 
                                             std::complex<int16_t>(0,1) * 
-                                            rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k]);
+                                            rawvecs[1][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k]);
                                     //std::cout <<  j << " " << 
                                     //    std::complex<int16_t>(1,0) * 
-                                    //    (rawvecs[0][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k] + 
+                                    //    (rawvecs[0][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k] + 
                                     //        std::complex<int16_t>(0,-1) * 
-                                    //        rawvecs[1][i*nave*parms.nsamps_per_pulse+j*parms.nsamps_per_pulse+k])
+                                    //        rawvecs[1][i*nave*nsamps_per_pulse+j*nsamps_per_pulse+k])
                                     //        << std::endl;
                                 }
                             }
                             if (debug){
                                 //if (j == nave-1 || j == nave-2) {
-                                    for (int k=0; k<parms.nsamps_per_pulse; k++){
+                                    for (int k=0; k<nsamps_per_pulse; k++){
                                         std::cout << j << " " << k << " ";
                                         std::cout << outvecs[0][0][i][k] << "\t";
                                         std::cout << outvecs[0][1][i][k] << "\t";
@@ -497,10 +509,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     filtvec_ptrs[1][0].resize(slowdim);
                     filtvec_ptrs[1][1].resize(slowdim);
                     for (int i=0; i<slowdim; i++){
-                        filtvecs[0][0][i].resize(parms.nsamps_per_pulse/dmrate);
-                        filtvecs[0][1][i].resize(parms.nsamps_per_pulse/dmrate);
-                        filtvecs[1][0][i].resize(parms.nsamps_per_pulse/dmrate);
-                        filtvecs[1][1][i].resize(parms.nsamps_per_pulse/dmrate);
+                        filtvecs[0][0][i].resize(nsamps_per_pulse/dmrate);
+
+                        filtvecs[0][1][i].resize(nsamps_per_pulse/dmrate);
+                        filtvecs[1][0][i].resize(nsamps_per_pulse/dmrate);
+                        filtvecs[1][1][i].resize(nsamps_per_pulse/dmrate);
                         filtvec_ptrs[0][0][i] = &filtvecs[0][0][i].front();
                         filtvec_ptrs[0][1][i] = &filtvecs[0][1][i].front();
                         filtvec_ptrs[1][0][i] = &filtvecs[1][0][i].front();
@@ -512,7 +525,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                                 outvec_ptrs[mode][pcode],
                                 filtvec_ptrs[mode][pcode],
                                 slowdim,
-                                parms.nsamps_per_pulse,
+                                nsamps_per_pulse,
                                 RX_RATE,
                                 bandwidth,
                                 dmrate);
@@ -525,7 +538,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                     //for (int a=0; a<2; a++){
                     //    for (int i=0; i<slowdim; i++){
-                    //        for (int j=0; j<parms.nsamps_per_pulse/dmrate; j++){
+                    //        for (int j=0; j<nsamps_per_pulse/dmrate; j++){
                     //            std::cout << a << " " << j << " " << filtvec_dptr[a][i][j] << std::endl;
                     //        }
                     //    }
@@ -535,8 +548,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     ffvecs[0].resize(slowdim);
                     ffvecs[1].resize(slowdim);
                     for (int i=0; i<slowdim; i++){
-                        ffvecs[0][i].resize(parms.nsamps_per_pulse/dmrate);
-                        ffvecs[1][i].resize(parms.nsamps_per_pulse/dmrate);
+                        ffvecs[0][i].resize(nsamps_per_pulse/dmrate);
+                        ffvecs[1][i].resize(nsamps_per_pulse/dmrate);
                         ffvec_ptrs[0][i] = &ffvecs[0][i].front();
                         ffvec_ptrs[1][i] = &ffvecs[1][i].front();
                     }
@@ -549,29 +562,36 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                             pcode_ptrs,
                             pcode0.size(),
                             slowdim,
-                            parms.nsamps_per_pulse/dmrate,
-                            OSR);
+                            nsamps_per_pulse/dmrate,
+                            osr);
                     }
 
-                    //typedef float rrec[2];
-                    fpow[0].resize(parms.nsamps_per_pulse/dmrate,0);
-                    fpow[1].resize(parms.nsamps_per_pulse/dmrate,0);
-                    fvel[0].resize(parms.nsamps_per_pulse/dmrate,0);
-                    fvel[1].resize(parms.nsamps_per_pulse/dmrate,0);
+                    first_inx = osr*pcode0.size();
+                    filter_delay = osr*pcode0.size() / 2;
+
+                    fpow[0].resize(nsamps_per_pulse/dmrate,0);
+                    fpow[1].resize(nsamps_per_pulse/dmrate,0);
+                    fvel[0].resize(nsamps_per_pulse/dmrate,0);
+                    fvel[1].resize(nsamps_per_pulse/dmrate,0);
                     for (int mode=0; mode<2; mode++){
                         rval = doppler_process(
                             ffvec_ptrs[mode],
                             &fpow[mode].front(),
                             &fvel[mode].front(),
                             slowdim,
-                            parms.nsamps_per_pulse/dmrate);
+                            nsamps_per_pulse/dmrate,
+                            2,
+                            first_inx+filter_delay);
                     }
                     send(msgsock, &return_status, sizeof(return_status),0);
-                    for (int i=0; i<parms.nsamps_per_pulse/dmrate; i++){
-                        //fpow[0][i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
-                        //fpow[1][i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
+                    for (int i=0; i<nsamps_per_pulse/dmrate; i++){
+                        //fpow[0][i] /= (float(npulses*npulses)*std::pow(2,30)*std::pow(50,2))/16;
+                        //fpow[1][i] /= (float(npulses*npulses)*std::pow(2,30)*std::pow(50,2))/16;
                         fpow[0][i] = 10*log10(fpow[0][i]);
                         fpow[1][i] = 10*log10(fpow[1][i]);
+                        fvel[0][i] = 3e5*fvel[0][i] / ( 8.*ptime_eff * slowdim * parms.freq_khz);
+                        fvel[1][i] = 3e5*fvel[1][i] / ( 8.*ptime_eff * slowdim * parms.freq_khz);
+                        printf("%i: %f\n",i,fvel[0][i]);
                         //printf("%i: %.1f @ %.1f\n",i,30+10*log10(fpow[i]),fvel[i]);
                         //printf("%i: %e @ %.1f\n",i,fpow[i],fvel[i]);
                         //filtvec_ptrs[0][i] /= ((float)nave*std::pow(2,15));
@@ -584,18 +604,16 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     break;
 
                 case GET_DATA:
-                    first_inx = OSR*pcode0.size();
-                    filter_delay = OSR*pcode0.size() / 2;
-
                     nranges = fastdim - filter_delay;
+                    std::cout << "nranges: " << nranges << std::endl;
                     send(msgsock, &nranges, sizeof(nranges),0);
 
-                    first_range_km = (pcode0.size() * 1.e-6*parms.symboltime_usec) * 1.5e5;
+                    first_range_km = (pcode0.size() * 1.e-6*symboltime_usec) * 1.5e5;
                     first_range_km = 0;
                     //std::cout << "first_range: " << first_range << std::endl;
                     send(msgsock, &first_range_km, sizeof(first_range_km),0);
 
-                    last_range_km = (1.e-6*parms.pulsetime_usec-pcode0.size()*1.e-6*parms.symboltime_usec) * 1.5e5;
+                    last_range_km = (1.e-6*ipp_usec-pcode0.size()*1.e-6*symboltime_usec) * 1.5e5;
                     //std::cout << "last_range: " << last_range << std::endl;
                     send(msgsock, &last_range_km, sizeof(last_range_km),0);
                     send(msgsock, 

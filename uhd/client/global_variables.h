@@ -45,7 +45,6 @@ struct soundingParms2{
     size_t num_rx_samples;
     size_t over_sample_rate;
     float range_res_km;
-    char pc_str[80];
 };
 
 struct periodogramParms{

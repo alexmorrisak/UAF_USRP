@@ -30,29 +30,26 @@ f = h5py.File("/home/radar/UAF_USRP/uhd/client/"+fstring,'r')
 
 
 dset = f['/Omode']
-print dset.shape[0]
-print dset.shape[1]
 image_o = np.empty([dset.shape[0], dset.shape[1]], float)
 dset.read_direct(image_o);
 
 dset = f['/Xmode']
-print dset.shape[0]
-print dset.shape[1]
 image_x = np.empty([dset.shape[0], dset.shape[1]], float)
 dset.read_direct(image_x);
-print "Number of range bins:", dset.shape[1]
-print "Number of frequencies:", dset.shape[0]
 
 freqs = f.attrs['Frequencies(kHz)']
 minfreq = freqs[0]
-print minfreq
 maxfreq = freqs[freqs.shape[0]-1]
+print "Start frequency:", minfreq
+print "End frequency:", maxfreq
 print "Number of frequencies:", freqs.shape[0]
 
 ranges = f.attrs['Ranges(km)']
 minrange = ranges[0]
 print minrange
 maxrange = ranges[ranges.shape[0]-1]
+print "Start range:", minrange
+print "End range:", maxrange
 print "Number of range bins:", ranges.shape[0]
 
 ##ave_o = np.average(image_o);

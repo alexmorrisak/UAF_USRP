@@ -24,11 +24,12 @@
 namespace po = boost::program_options;
 
 int main(int argc, char *argv[]){
+    int verbose =1;
     /* Socket and status variables*/
     int sockfd=0, n=0;
     int rval =0, status=0;
     struct sockaddr_in serv_addr;
-    struct soundingParms parms;
+    struct soundingParms2 parms;
     struct periodogramParms spect_parms;
     char usrpmsg;
 
@@ -68,6 +69,7 @@ int main(int argc, char *argv[]){
     unsigned int nsteps;
     unsigned int npulses;
     float resolution;
+    size_t osr;
     size_t first_range,last_range;
     int ifreq;
 
@@ -84,6 +86,8 @@ int main(int argc, char *argv[]){
             "Number of pulses in each integration period")
         ("resolution", po::value<float>(&resolution)->default_value(5),
             "Desired range resolution in km")
+        ("osr", po::value<size_t>(&osr)->default_value(1),
+            "Desired range oversampling for super-resolution")
         ("last-range", po::value<size_t>(&last_range)->default_value(750),
             "Maximum unambiguous range in km")
         ("first-range", po::value<size_t>(&first_range)->default_value(50),
@@ -99,52 +103,56 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    parms.npulses = npulses;
+    parms.num_pulses = npulses;
+    parms.first_range_km = first_range;
+    parms.last_range_km = last_range;
+    parms.over_sample_rate = osr;
+    parms.range_res_km = resolution;
 
-    size_t temp_symboltime_usec = resolution / 1.5e-1;
-    size_t temp_dmrate = (size_t) ceil(temp_symboltime_usec * RX_RATE / (OSR*1000));
-    //if (temp_dmrate%2 == 1) temp_dmrate -= 1;
-    while (temp_dmrate%OSR != 0) temp_dmrate -= 1;
-    parms.symboltime_usec = OSR*1000*temp_dmrate/RX_RATE;
-
-
-    size_t temp_pfactor = (size_t) ceil(2*last_range / 3.0e-1 / parms.symboltime_usec);
-    parms.pulsetime_usec = temp_pfactor * parms.symboltime_usec;
-
-    std::cout << "Using pulse time: " << parms.pulsetime_usec << std::endl;
-    std::cout << "symbol time: " << parms.symboltime_usec << std::endl;
-    std::cout << "Using range resolution: " << 1.5e-1*parms.symboltime_usec << std::endl;
+    //size_t temp_symboltime_usec = resolution / 1.5e-1;
+    //size_t temp_dmrate = (size_t) ceil(temp_symboltime_usec * RX_RATE / (OSR*1000));
+    ////if (temp_dmrate%2 == 1) temp_dmrate -= 1;
+    //while (temp_dmrate%OSR != 0) temp_dmrate -= 1;
+    ////parms.symboltime_usec = OSR*1000*temp_dmrate/RX_RATE;
 
 
-    size_t max_txtime_usec = (size_t) floor(2*first_range / 3.0e-1);
-    size_t max_code_length = (size_t) floor(max_txtime_usec / parms.symboltime_usec);
-    if (max_code_length < 4){
-        sprintf(parms.pc_str,"rect");
-    }
-    else if (max_code_length < 8){
-        sprintf(parms.pc_str,"golay4");
-    }
-    else if (max_code_length < 10){
-        sprintf(parms.pc_str,"golay8");
-    }
-    else if (max_code_length < 16){
-        sprintf(parms.pc_str,"golay10");
-    }
-    else{
-        sprintf(parms.pc_str,"golay16");
-    }
-    std::cout << "Using pcode: " << parms.pc_str << std::endl;
+    //size_t temp_pfactor = (size_t) ceil(2*last_range / 3.0e-1 / parms.symboltime_usec);
+    //parms.pulsetime_usec = temp_pfactor * parms.symboltime_usec;
+
+    //std::cout << "Using pulse time: " << parms.pulsetime_usec << std::endl;
+    //std::cout << "symbol time: " << parms.symboltime_usec << std::endl;
+    //std::cout << "Using range resolution: " << 1.5e-1*parms.symboltime_usec << std::endl;
+
+
+    //size_t max_txtime_usec = (size_t) floor(2*first_range / 3.0e-1);
+    //size_t max_code_length = (size_t) floor(max_txtime_usec / parms.symboltime_usec);
+    //if (max_code_length < 4){
+    //    sprintf(parms.pc_str,"rect");
+    //}
+    //else if (max_code_length < 8){
+    //    sprintf(parms.pc_str,"golay4");
+    //}
+    //else if (max_code_length < 10){
+    //    sprintf(parms.pc_str,"golay8");
+    //}
+    //else if (max_code_length < 16){
+    //    sprintf(parms.pc_str,"golay10");
+    //}
+    //else{
+    //    sprintf(parms.pc_str,"golay16");
+    //}
+    //std::cout << "Using pcode: " << parms.pc_str << std::endl;
         
 
     //parms.pulsetime_usec = 5000;
 
     //sprintf(parms.pc_str,"golay8");
-    parms.nsamps_per_pulse = (size_t) (1e-6*parms.pulsetime_usec*RX_RATE);
+    //parms.nsamps_per_pulse = (size_t) (1e-6*parms.pulsetime_usec*RX_RATE);
     size_t datalen;
 
     printf("\nmsg values\n");
-    printf("freq: %04.f kHz\n", nominal_freq);
-    printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
+    //printf("freq: %i kHz\n", nominal_freq);
+    //printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
 
     if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
         printf("Error in creating socket\n");
@@ -171,6 +179,7 @@ int main(int argc, char *argv[]){
     ifreq = 0;
     while(nominal_freq < stop_freq){
         /* Get the spectrum and then select the quietest frequency*/
+        if (verbose) std::cout << "Grabbing spectrum\n";
         usrpmsg = LISTEN;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         size_t search_range = (int) step_freq / 2;
@@ -179,39 +188,45 @@ int main(int argc, char *argv[]){
         spect_parms.start_freq_khz = nominal_freq-search_range/2;
         spect_parms.end_freq_khz = nominal_freq+search_range/2;
         spect_parms.bandwidth_khz = 10;
-        send(sockfd, &spect_parms, sizeof(parms), 0);
+        send(sockfd, &spect_parms, sizeof(spect_parms), 0);
         recv(sockfd, &spectrum.front(), search_range*sizeof(float), 0);
         min_inx = 0;
         for (int i=1; i<spectrum.size(); i++){
             if (spectrum[i] < spectrum[min_inx]) min_inx = i;
         }
-        parms.freq = min_inx + spect_parms.start_freq_khz;
-        frequencies.push_back(parms.freq);
+        parms.freq_khz = min_inx + spect_parms.start_freq_khz;
+        frequencies.push_back(parms.freq_khz);
         rval = recv(sockfd, &status, sizeof(int),0);
 
         /* Perform the sounding */
+        if (verbose) std::cout << "Performing sounding\n";
         usrpmsg = SEND;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         send(sockfd, &parms, sizeof(parms), 0);
         rval = recv(sockfd, &status, sizeof(int),0);
 
         /* Process the data */
+        if (verbose) std::cout << "Processing data\n";
         usrpmsg = PROCESS;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         rval = recv(sockfd, &status, sizeof(int),0);
 
         /* Get the data and append it to running data structure*/
+        if (verbose) std::cout << "Getting data\n";
         usrpmsg = GET_DATA;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         recv(sockfd, &datalen, sizeof(datalen), 0);
+        if (verbose) std::cout << "data length: " << datalen << std::endl;
         recv(sockfd, &first_range, sizeof(first_range), 0);
+        if (verbose) std::cout << "first range: " << first_range << std::endl;
         recv(sockfd, &last_range, sizeof(last_range), 0);
+        if (verbose) std::cout << "last range: " << last_range << std::endl;
         rxdata[0].resize(rxdata[0].size()+datalen);
         rxdata[1].resize(rxdata[1].size()+datalen);
         recv(sockfd, &rxdata[0].front() + (ifreq*datalen), datalen*sizeof(float), 0);
         recv(sockfd, &rxdata[1].front() + (ifreq*datalen), datalen*sizeof(float), 0);
 
-        printf("Sounding %i of %i complete (%i kHz)\n", ifreq+1, nsteps, parms.freq);
+        printf("Sounding %i of %i complete (%i kHz)\n", ifreq+1, nsteps, parms.freq_khz);
         nominal_freq += step_freq;
 	    ifreq++;
     }

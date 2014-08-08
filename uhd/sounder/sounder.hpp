@@ -30,7 +30,9 @@ int doppler_process(
     float* outpow,
     float* outvel,
     int slowdim,
-    int fastdim
+    int fastdim,
+    int osr,
+    int first_range_inx
 );
 void transceive(
     uhd::usrp::multi_usrp::sptr usrp,

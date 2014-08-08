@@ -25,6 +25,7 @@ int matched_filter(
     int fastdim,
     int osr
 ){
+    int debug = 0;
     int ntaps = osr*pcode_length;
     //std::cout << "entering matched filter. ntaps: " << ntaps <<std::endl;
     //std::cout << slowdim <<std::endl;
@@ -56,8 +57,10 @@ int matched_filter(
             for (int i=0; i<fastdim; i++){
                 tempvec[ntaps/2+i] = indata[icode][ipulse][i];
             }
-            for (int i=0; i<fastdim+ntaps; i++){
-                //printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
+            if (debug){
+                for (int i=0; i<fastdim+ntaps; i++){
+                    printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
+                }
             }
 
             //perform the convolution
@@ -67,9 +70,11 @@ int matched_filter(
                     temp += filter_taps[icode][i]*tempvec[isamp+i];
                 }
                 outdata[ipulse][isamp] += temp;
-                //printf("out %i,%i: %.2f\n",ipulse,isamp,10*log10(std::abs(outdata[ipulse][isamp])));
+                //if (icode==1) printf("out %i,%i: %.2f\n",ipulse,isamp,20*log10(std::abs(outdata[ipulse][isamp])));
                 //printf("temp %i,%i: %.2f\n",ipulse,isamp,10*log10(std::abs(temp)));
-                //printf("temp %i,%i: %.2f @ %.0f\n",ipulse,isamp,std::abs(temp),180*std::arg(temp)/M_PI);
+                if (debug){
+                    printf("temp %i,%i: %.2f @ %.0f\n",ipulse,isamp,std::abs(temp),180*std::arg(temp)/M_PI);
+                }
                 //printf("out %i,%i: %.2f\n",ipulse,isamp,std::abs(outdata[ipulse][isamp]));
                 //printf("out %i,%i: (%.1f, %.1f)\n",ipulse,isamp,outdata[ipulse][isamp].real(),
                 //    outdata[ipulse][isamp].imag());

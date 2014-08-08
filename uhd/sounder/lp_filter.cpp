@@ -51,7 +51,7 @@ int lp_filter(
             //printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
         }
         if (debug){
-            for (int i=0; i<(fastdim+ntaps)/2; i++){
+            for (int i=0; i<(fastdim+ntaps); i++){
                 printf("in: %i (%.2f, %.2f)\n", i, tempvec[i].real(), tempvec[i].imag());
             }
         }
