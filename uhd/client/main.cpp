@@ -46,7 +46,8 @@ int main(int argc, char *argv[]){
     char fname[80];
 
     //Data storage variables
-    std::vector<float> rxdata[2];
+    std::vector<float> rxpow[2];
+    std::vector<float> rxvel[2];
     std::vector<std::vector<float> > omode;
     std::vector<std::vector<float> > xmode;
     std::vector<float*> omode_ptrs;
@@ -221,10 +222,14 @@ int main(int argc, char *argv[]){
         if (verbose) std::cout << "first range: " << first_range << std::endl;
         recv(sockfd, &last_range, sizeof(last_range), 0);
         if (verbose) std::cout << "last range: " << last_range << std::endl;
-        rxdata[0].resize(rxdata[0].size()+datalen);
-        rxdata[1].resize(rxdata[1].size()+datalen);
-        recv(sockfd, &rxdata[0].front() + (ifreq*datalen), datalen*sizeof(float), 0);
-        recv(sockfd, &rxdata[1].front() + (ifreq*datalen), datalen*sizeof(float), 0);
+        rxpow[0].resize(rxpow[0].size()+datalen);
+        rxpow[1].resize(rxpow[1].size()+datalen);
+        rxvel[0].resize(rxvel[0].size()+datalen);
+        rxvel[1].resize(rxvel[1].size()+datalen);
+        recv(sockfd, &rxpow[0].front() + (ifreq*datalen), datalen*sizeof(float), 0);
+        recv(sockfd, &rxpow[1].front() + (ifreq*datalen), datalen*sizeof(float), 0);
+        recv(sockfd, &rxvel[0].front() + (ifreq*datalen), datalen*sizeof(float), 0);
+        recv(sockfd, &rxvel[1].front() + (ifreq*datalen), datalen*sizeof(float), 0);
 
         printf("Sounding %i of %i complete (%i kHz)\n", ifreq+1, nsteps, parms.freq_khz);
         nominal_freq += step_freq;
@@ -243,16 +248,15 @@ int main(int argc, char *argv[]){
         dims[1] = datalen;
         dataspace_id = H5Screate_simple(2, dims, NULL);
 
-        /* Write omode data to file */
-        sprintf(dset, "Omode");
+        /* Write omode power to file */
+        printf("OPower");
+        sprintf(dset, "OPower");
         dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
         eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-            &rxdata[0].front());
-            //&omode[0].front());
+            &rxpow[0].front());
         if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
-
 
         eval =H5Dclose(dataset_id);
         if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
@@ -260,15 +264,52 @@ int main(int argc, char *argv[]){
         eval =H5Sclose(dataspace_id);
         if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
 
-        /* Write xmode data to file */
+        /* Write omode velocity to file */
         dataspace_id = H5Screate_simple(2, dims, NULL);
 
-        sprintf(dset, "Xmode");
+        printf("OVelocity");
+        sprintf(dset, "OVelocity");
+
         dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
         eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-            &rxdata[1].front());
+            &rxvel[0].front());
+        if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+
+        eval =H5Dclose(dataset_id);
+        if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
+
+        eval =H5Sclose(dataspace_id);
+        if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
+
+        /* Write xmode power to file */
+        dataspace_id = H5Screate_simple(2, dims, NULL);
+
+        printf("XPower");
+        sprintf(dset, "XPower");
+        dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+            &rxpow[1].front());
+        if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+
+        eval =H5Dclose(dataset_id);
+        if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
+
+        eval =H5Sclose(dataspace_id);
+        if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
+
+        /* Write xmode velocity to file */
+        dataspace_id = H5Screate_simple(2, dims, NULL);
+
+        sprintf(dset, "XVelocity");
+        dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+        eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
+            &rxvel[1].front());
         if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
 
         eval =H5Dclose(dataset_id);
@@ -306,26 +347,6 @@ int main(int argc, char *argv[]){
 
         eval =H5Sclose(dataspace_id);
         if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
-
-        ///* Create 1-D dataspace for range values */
-        //dims[0] = datalen;
-        //dataspace_id = H5Screate_simple(1, dims, NULL);
-
-        ///* Write range values to file */
-        //sprintf(dset, "Ranges");
-        //dataset_id = H5Dcreate2(file_id, dset, H5T_STD_U32BE, dataspace_id,
-        //    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-        //eval =H5Dwrite(dataset_id, H5T_NATIVE_UINT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-        //    &ranges.front());
-        //if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
-
-        //eval =H5Dclose(dataset_id);
-        //if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
-
-        //eval =H5Sclose(dataspace_id);
-        //if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
-
 
         eval =H5Fclose(file_id);
         if (eval) std::cerr << "Error closing file: " << fname << std::endl;

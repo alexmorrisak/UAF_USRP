@@ -29,13 +29,21 @@ f = h5py.File("/home/radar/UAF_USRP/uhd/client/"+fstring,'r')
 #nfreqs = len(f.keys())/2;
 
 
-dset = f['/Omode']
-image_o = np.empty([dset.shape[0], dset.shape[1]], float)
-dset.read_direct(image_o);
+dset = f['/OPower']
+opower = np.empty([dset.shape[0], dset.shape[1]], float)
+dset.read_direct(opower);
 
-dset = f['/Xmode']
-image_x = np.empty([dset.shape[0], dset.shape[1]], float)
-dset.read_direct(image_x);
+dset = f['/OVelocity']
+ovelocity = np.empty([dset.shape[0], dset.shape[1]], float)
+dset.read_direct(ovelocity);
+
+dset = f['/XPower']
+xpower = np.empty([dset.shape[0], dset.shape[1]], float)
+dset.read_direct(xpower);
+
+dset = f['/XVelocity']
+xvelocity = np.empty([dset.shape[0], dset.shape[1]], float)
+dset.read_direct(xvelocity);
 
 freqs = f.attrs['Frequencies(kHz)']
 minfreq = freqs[0]
@@ -52,13 +60,13 @@ print "Start range:", minrange
 print "End range:", maxrange
 print "Number of range bins:", ranges.shape[0]
 
-##ave_o = np.average(image_o);
-##ave_x = np.average(image_x);
+##ave_o = np.average(opower);
+##ave_x = np.average(xpower);
 ##print ave_o
 ##print ave_x
 ##for i in range(0,nfreqs):
-#	#image_o[:,i] /= np.median(image_o[:,i])
-#	#image_x[:,i] /= np.median(image_x[:,i])
+#	#opower[:,i] /= np.median(opower[:,i])
+#	#xpower[:,i] /= np.median(xpower[:,i])
 #	#image[:,i] /= np.average(image[:,i])
 #
 ext = [minfreq/1e3, maxfreq/1e3, minrange, maxrange]
@@ -66,21 +74,32 @@ asp = 2. * (maxfreq/1e3 - minfreq/1e3) / (maxrange - minrange);
 #asp = 1
 print asp
 #
-image_o = np.rot90(image_o)
-image_x = np.rot90(image_x)
+opower = np.rot90(opower)
+xpower = np.rot90(xpower)
+ovelocity = np.rot90(ovelocity)
+xvelocity = np.rot90(xvelocity)
 ##image[np.where(image < 0)] = 0
 ##image[np.where(image > 20)] = 20
-plt.subplot(121)
-plt.title('O-Mode (dB)')
-plt.imshow(image_o,extent=ext,aspect=asp,interpolation = "none")
-#plt.imshow(image_o,aspect=asp,interpolation = "none")
+plt.subplot(221)
+plt.title('O-Power (dB)')
+plt.imshow(opower,extent=ext,aspect=asp,interpolation = "none")
 plt.colorbar()
-plt.subplot(122)
-plt.title('X-Mode (dB)')
-plt.imshow(image_x,extent=ext,aspect=asp,interpolation = "none")
-#plt.imshow(image_x,aspect=asp,interpolation = "none")
-plt.colorbar()
-plt.show()
-    
 
+plt.subplot(222)
+plt.title('O-Velocity (m/s)')
+plt.imshow(ovelocity,extent=ext,aspect=asp,interpolation = "none")
+plt.colorbar()
+
+
+plt.subplot(223)
+plt.title('X-Power (dB)')
+plt.imshow(xpower,extent=ext,aspect=asp,interpolation = "none")
+plt.colorbar()
+    
+plt.subplot(224)
+plt.title('X-Velocity (m/s)')
+plt.imshow(xvelocity,extent=ext,aspect=asp,interpolation = "none")
+plt.colorbar()
+
+plt.show()
 

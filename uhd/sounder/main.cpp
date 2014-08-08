@@ -591,7 +591,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         fpow[1][i] = 10*log10(fpow[1][i]);
                         fvel[0][i] = 3e5*fvel[0][i] / ( 8.*ptime_eff * slowdim * parms.freq_khz);
                         fvel[1][i] = 3e5*fvel[1][i] / ( 8.*ptime_eff * slowdim * parms.freq_khz);
-                        printf("%i: %f\n",i,fvel[0][i]);
+                        //printf("%i: %f\n",i,fvel[0][i]);
                         //printf("%i: %.1f @ %.1f\n",i,30+10*log10(fpow[i]),fvel[i]);
                         //printf("%i: %e @ %.1f\n",i,fpow[i],fvel[i]);
                         //filtvec_ptrs[0][i] /= ((float)nave*std::pow(2,15));
@@ -621,6 +621,12 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         nranges*sizeof(float),0);
                     send(msgsock, 
                         &fpow[1].front()+filter_delay,
+                        nranges*sizeof(float),0);
+                    send(msgsock, 
+                        &fvel[0].front()+filter_delay,
+                        nranges*sizeof(float),0);
+                    send(msgsock, 
+                        &fvel[1].front()+filter_delay,
                         nranges*sizeof(float),0);
                     break;
 
