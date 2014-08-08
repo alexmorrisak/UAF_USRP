@@ -70,7 +70,9 @@ int doppler_process(
             //printf("Mininx: %i / %i\n", maxinx, slowdim);
         }
         outpow[irange] = 
-            std::abs(doppler_grid[maxinx][irange])*std::abs(doppler_grid[maxinx][irange]);
+            std::abs(doppler_grid[maxinx][irange]*
+                doppler_grid[maxinx][irange]);
+        //std::cout << outpow[irange] << std::endl;
             //(out[maxinx][0]*out[maxinx][0] + out[maxinx][1]*out[maxinx][1]);
         //printf("outpow %i: ", irange);
         //for (int j=0; j<slowdim; j++){

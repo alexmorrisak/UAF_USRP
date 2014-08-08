@@ -82,7 +82,7 @@ void transceive(
     uhd::stream_cmd_t stream_cmd = uhd::stream_cmd_t::STREAM_MODE_NUM_SAMPS_AND_DONE;
     stream_cmd.num_samps = npulses*samps_per_pulse;
     stream_cmd.stream_now = false;
-    stream_cmd.time_spec = start_time;//+txon;
+    stream_cmd.time_spec = start_time + 22 / usrp->get_rx_rate(); //Digital hardware delay is 22 samples long.  Found by experiment.
     if (verbose) std::cout << "time spec: " << stream_cmd.time_spec.get_real_secs() << std::endl;
     
     //loop for every pulse in the sequence

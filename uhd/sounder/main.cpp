@@ -60,12 +60,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     std::string ref, otw, type, args;
     double freq;
 
-    //
-    //float p_code[13] = {1,1,1,1,1,-1,-1,1,1,-1,1,-1,1};
-    //float p_code[1] = {1};
-    float *p_code;//[3] = {1,1,-1};
-    //float p_code[10] = {0,0,0,1,1,1,1,1,1,1};
-    //int pcodelen = 3;
     std::vector<float> pcode0;
     std::vector<float> pcode1;
     float* pcode_ptrs[2];
@@ -103,6 +97,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
     //data processing variables
     int dmrate, slowdim, fastdim;
+    size_t nranges, first_range_km, last_range_km;
+    size_t first_inx;
+    size_t filter_delay;
     float bandwidth;
 
     std::vector<std::vector<std::complex<float> > > outvecs[2][2];
@@ -322,8 +319,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         tx_raw_buff1[isym*samps_per_sym+ntaps/2 + samps_per_sym/2] = std::complex<float>(
                             pcode1[isym]*15000, 0x0000);
                     }
-                    //for (int i=0; i<tx_raw_buff.size(); i++){
-                    //    printf("tx_raw_buff %i: %f, %f\n", i, tx_raw_buff[i].real(), tx_raw_buff[i].imag());
+                    //for (int i=0; i<tx_raw_buff0.size(); i++){
+                    //    printf("tx_raw_buff %i: %f, %f\n", i, tx_raw_buff0[i].real(), tx_raw_buff0[i].imag());
                     //}
 
                     //filter the raw tx vector
@@ -338,7 +335,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         }
                         tx_filt_buff0[i] = std::complex<int16_t>((int16_t)temp0.real(), (int16_t)temp0.imag());
                         tx_filt_buff1[i] = std::complex<int16_t>((int16_t)temp1.real(), (int16_t)temp1.imag());
-                        //printf("tx_filt_buff %i: %i, %i\n", i, tx_filt_buff[i].real(), tx_filt_buff[i].imag());
+                        //printf("tx_filt_buff %i: %i, %i\n", i, tx_filt_buff0[i].real(), tx_filt_buff0[i].imag());
                     }
 
                     //tx_ontime = (float) tx_filt_buff0.size() / (1.e3*parms.txrate_khz) + 100e-6;
@@ -571,8 +568,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     }
                     send(msgsock, &return_status, sizeof(return_status),0);
                     for (int i=0; i<parms.nsamps_per_pulse/dmrate; i++){
-                        fpow[0][i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
-                        fpow[1][i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
+                        //fpow[0][i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
+                        //fpow[1][i] /= (float(parms.npulses*parms.npulses)*std::pow(2,30)*std::pow(50,2))/16;
+                        fpow[0][i] = 10*log10(fpow[0][i]);
+                        fpow[1][i] = 10*log10(fpow[1][i]);
                         //printf("%i: %.1f @ %.1f\n",i,30+10*log10(fpow[i]),fvel[i]);
                         //printf("%i: %e @ %.1f\n",i,fpow[i],fvel[i]);
                         //filtvec_ptrs[0][i] /= ((float)nave*std::pow(2,15));
@@ -585,9 +584,26 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     break;
 
                 case GET_DATA:
-                    send(msgsock, &fastdim, sizeof(fastdim),0);
-                    send(msgsock, &fpow[0].front(), fpow[0].size()*sizeof(float),0);
-                    send(msgsock, &fpow[1].front(), fpow[1].size()*sizeof(float),0);
+                    first_inx = OSR*pcode0.size();
+                    filter_delay = OSR*pcode0.size() / 2;
+
+                    nranges = fastdim - filter_delay;
+                    send(msgsock, &nranges, sizeof(nranges),0);
+
+                    first_range_km = (pcode0.size() * 1.e-6*parms.symboltime_usec) * 1.5e5;
+                    first_range_km = 0;
+                    //std::cout << "first_range: " << first_range << std::endl;
+                    send(msgsock, &first_range_km, sizeof(first_range_km),0);
+
+                    last_range_km = (1.e-6*parms.pulsetime_usec-pcode0.size()*1.e-6*parms.symboltime_usec) * 1.5e5;
+                    //std::cout << "last_range: " << last_range << std::endl;
+                    send(msgsock, &last_range_km, sizeof(last_range_km),0);
+                    send(msgsock, 
+                        &fpow[0].front()+filter_delay,
+                        nranges*sizeof(float),0);
+                    send(msgsock, 
+                        &fpow[1].front()+filter_delay,
+                        nranges*sizeof(float),0);
                     break;
 
                 default:

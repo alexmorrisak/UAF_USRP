@@ -34,7 +34,7 @@ int main(int argc, char *argv[]){
 
     /* hdf5 and file-writing variables */
     char dset[80];
-    hid_t file_id, dataspace_id, dataset_id;
+    hid_t file_id, dataspace_id, dataset_id, attribute_id;
     herr_t eval = 0;
     hsize_t dims[2];
     time_t rawtime;
@@ -50,7 +50,7 @@ int main(int argc, char *argv[]){
     std::vector<std::vector<float> > xmode;
     std::vector<float*> omode_ptrs;
     std::vector<float*> xmode_ptrs;
-    //std::vector<uint32_t> ranges;
+    std::vector<uint32_t> ranges;
     std::vector<uint32_t> frequencies;
 
     //Variables for testing
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]){
     unsigned int nsteps;
     unsigned int npulses;
     float resolution;
-    unsigned int first_range,last_range;
+    size_t first_range,last_range;
     int ifreq;
 
     po::options_description desc("Allowed options");
@@ -84,9 +84,9 @@ int main(int argc, char *argv[]){
             "Number of pulses in each integration period")
         ("resolution", po::value<float>(&resolution)->default_value(5),
             "Desired range resolution in km")
-        ("last-range", po::value<unsigned int>(&last_range)->default_value(750),
+        ("last-range", po::value<size_t>(&last_range)->default_value(750),
             "Maximum unambiguous range in km")
-        ("first-range", po::value<unsigned int>(&first_range)->default_value(50),
+        ("first-range", po::value<size_t>(&first_range)->default_value(50),
             "First receivable range in km")
         ("write","write to file")
     ;
@@ -117,11 +117,6 @@ int main(int argc, char *argv[]){
     std::cout << "symbol time: " << parms.symboltime_usec << std::endl;
     std::cout << "Using range resolution: " << 1.5e-1*parms.symboltime_usec << std::endl;
 
-    //ranges.resize(OSR*parms.pulsetime_usec/parms.symboltime_usec);
-    //for (size_t i=0; i<ranges.size(); i++){
-    //    ranges[i] = first_range + i*(last_range-first_range)/ranges.size();
-    //    std::cout << "range " << i << " " << ranges[i] << std::endl;
-    //}
 
     size_t max_txtime_usec = (size_t) floor(2*first_range / 3.0e-1);
     size_t max_code_length = (size_t) floor(max_txtime_usec / parms.symboltime_usec);
@@ -134,11 +129,11 @@ int main(int argc, char *argv[]){
     else if (max_code_length < 10){
         sprintf(parms.pc_str,"golay8");
     }
-    //else if (max_code_length < 16){
-    //    sprintf(parms.pc_str,"golay10");
-    //}
-    else{
+    else if (max_code_length < 16){
         sprintf(parms.pc_str,"golay10");
+    }
+    else{
+        sprintf(parms.pc_str,"golay16");
     }
     std::cout << "Using pcode: " << parms.pc_str << std::endl;
         
@@ -147,7 +142,7 @@ int main(int argc, char *argv[]){
 
     //sprintf(parms.pc_str,"golay8");
     parms.nsamps_per_pulse = (size_t) (1e-6*parms.pulsetime_usec*RX_RATE);
-    int datalen;
+    size_t datalen;
 
     printf("\nmsg values\n");
     printf("freq: %04.f kHz\n", nominal_freq);
@@ -196,7 +191,6 @@ int main(int argc, char *argv[]){
         }
         parms.freq = min_inx + spect_parms.start_freq_khz;
         frequencies.push_back(parms.freq);
-        std::cout << "freqs: " << frequencies[ifreq] << std::endl;
         rval = recv(sockfd, &status, sizeof(int),0);
 
         /* Perform the sounding */
@@ -214,6 +208,8 @@ int main(int argc, char *argv[]){
         usrpmsg = GET_DATA;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         recv(sockfd, &datalen, sizeof(datalen), 0);
+        recv(sockfd, &first_range, sizeof(first_range), 0);
+        recv(sockfd, &last_range, sizeof(last_range), 0);
         rxdata[0].resize(rxdata[0].size()+datalen);
         rxdata[1].resize(rxdata[1].size()+datalen);
         recv(sockfd, &rxdata[0].front() + (ifreq*datalen), datalen*sizeof(float), 0);
@@ -223,6 +219,12 @@ int main(int argc, char *argv[]){
         nominal_freq += step_freq;
 	    ifreq++;
     }
+
+    ranges.resize(datalen);
+    for (size_t i=0; i<ranges.size(); i++){
+        ranges[i] = first_range + i*(last_range-first_range)/ranges.size();
+    }
+
     /* Write the data to hdf5 file */
     if (vm.count("write")){
         /* Create 2-D dataset for omode and xmode powers.*/
@@ -239,6 +241,7 @@ int main(int argc, char *argv[]){
             &rxdata[0].front());
             //&omode[0].front());
         if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
+
 
         eval =H5Dclose(dataset_id);
         if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
@@ -267,17 +270,28 @@ int main(int argc, char *argv[]){
         dims[0] = nsteps;
         dataspace_id = H5Screate_simple(1, dims, NULL);
 
-        /* Write frequency values to file */
-        sprintf(dset, "Frequencies");
-        dataset_id = H5Dcreate2(file_id, dset, H5T_STD_U32BE, dataspace_id,
-            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        attribute_id = H5Acreate2(file_id, "Frequencies(kHz)", H5T_STD_U32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT);
 
-        eval =H5Dwrite(dataset_id, H5T_NATIVE_UINT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
-            &frequencies.front());
+        eval =H5Awrite(attribute_id, H5T_NATIVE_UINT, &frequencies.front());
         if (eval) std::cerr << "Error writing to dataset: " << dset << std::endl;
 
-        eval =H5Dclose(dataset_id);
+        eval =H5Aclose(attribute_id);
         if (eval) std::cerr << "Error closing dataset: " << dset << std::endl;
+
+        eval =H5Sclose(dataspace_id);
+        if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
+
+        /* Create attributes for first range, last range */
+        dims[0]=datalen;
+        dataspace_id = H5Screate_simple(1, dims, NULL);
+
+        attribute_id = H5Acreate2(file_id, "Ranges(km)", H5T_STD_U32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT);
+
+        H5Awrite(attribute_id, H5T_NATIVE_UINT, &ranges.front());
+
+        H5Aclose(attribute_id);
 
         eval =H5Sclose(dataspace_id);
         if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
@@ -300,12 +314,6 @@ int main(int argc, char *argv[]){
 
         //eval =H5Sclose(dataspace_id);
         //if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
-
-
-
-
-
-
 
 
         eval =H5Fclose(file_id);
