@@ -37,6 +37,17 @@ struct soundingParms{
     char pc_str[80];
 };
 
+struct soundingParms2{
+    size_t freq_khz;
+    size_t num_pulses;
+    size_t first_range_km;
+    size_t last_range_km;
+    size_t num_rx_samples;
+    size_t over_sample_rate;
+    float range_res_km;
+    char pc_str[80];
+};
+
 struct periodogramParms{
     size_t start_freq_khz;
     size_t end_freq_khz; //End frequency, NOT inclusive

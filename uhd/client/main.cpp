@@ -99,15 +99,13 @@ int main(int argc, char *argv[]){
         return 1;
     }
 
-    parms.txrate_khz = 500;
-    parms.rxrate_khz = 500;
     parms.npulses = npulses;
 
     size_t temp_symboltime_usec = resolution / 1.5e-1;
-    size_t temp_dmrate = (size_t) ceil(temp_symboltime_usec * parms.rxrate_khz / (OSR*1000));
+    size_t temp_dmrate = (size_t) ceil(temp_symboltime_usec * RX_RATE / (OSR*1000));
     //if (temp_dmrate%2 == 1) temp_dmrate -= 1;
     while (temp_dmrate%OSR != 0) temp_dmrate -= 1;
-    parms.symboltime_usec = OSR*1000*temp_dmrate/parms.rxrate_khz;
+    parms.symboltime_usec = OSR*1000*temp_dmrate/RX_RATE;
 
 
     size_t temp_pfactor = (size_t) ceil(2*last_range / 3.0e-1 / parms.symboltime_usec);
@@ -146,8 +144,6 @@ int main(int argc, char *argv[]){
 
     printf("\nmsg values\n");
     printf("freq: %04.f kHz\n", nominal_freq);
-    printf("txrate: %03.f kHz\n", parms.txrate_khz);
-    printf("rxrate: %03.f kHz\n", parms.rxrate_khz);
     printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
 
     if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
