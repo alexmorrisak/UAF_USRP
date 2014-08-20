@@ -40,8 +40,8 @@ struct soundingParms{
 struct soundingParms2{
     size_t freq_khz;
     size_t num_pulses;
-    size_t first_range_km;
-    size_t last_range_km;
+    int first_range_km;
+    int last_range_km;
     size_t num_rx_samples;
     size_t over_sample_rate;
     float range_res_km;

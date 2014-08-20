@@ -45,14 +45,14 @@ dset = f['/XVelocity']
 xvelocity = np.empty([dset.shape[0], dset.shape[1]], float)
 dset.read_direct(xvelocity);
 
-freqs = f.attrs['Frequencies(kHz)']
+freqs = f.attrs['Frequencies (kHz)']
 minfreq = freqs[0]
 maxfreq = freqs[freqs.shape[0]-1]
 print "Start frequency:", minfreq
 print "End frequency:", maxfreq
 print "Number of frequencies:", freqs.shape[0]
 
-ranges = f.attrs['Ranges(km)']
+ranges = f.attrs['Ranges (km)']
 minrange = ranges[0]
 print minrange
 maxrange = ranges[ranges.shape[0]-1]

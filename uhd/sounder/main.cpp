@@ -120,7 +120,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     //socket-related variables
     int sock, msgsock, rval, rfds, efds;
     int msg;
-    struct soundingParms2 parms;
+    struct soundingParms2 parms, actual_parms;
     struct periodogramParms lparms;
     char usrpmsg;
 
@@ -405,7 +405,18 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         std::cerr << "This is a bad record..\n";
                         //Do something..?
                     }
+                    printf("done transceivn\n");
+                    //parms.first_range_km = first_range_km;
+                    //parms.last_range_km = last_range_km;
+                    parms.range_res_km = 1.5e-1*symboltime_usec;
+                    fastdim = nsamps_per_pulse/dmrate;
                     if (verbose) std::cout << "Done rxing 0\n";
+                    actual_parms.freq_khz = freq/1e3;
+                    actual_parms.num_pulses = parms.num_pulses;
+                    actual_parms.first_range_km = -1;
+                    actual_parms.last_range_km = -1;
+                    actual_parms.range_res_km = parms.range_res_km;
+                    send(msgsock, &actual_parms, sizeof(actual_parms),0);
                     send(msgsock, &return_status, sizeof(return_status),0);
                     if (verbose) std::cout << "Done rxing\n";
                     break;
@@ -414,7 +425,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     if (verbose) std::cout << "Starting processing\n";
                     //dmrate = parms.symboltime_usec * parms.rxrate_khz / (osr*1000);
                     //dmrate = (size_t) (1.e-6*symboltime_usec * RX_RATE / osr);
-                    fastdim = nsamps_per_pulse/dmrate;
                     bandwidth = 1/(2.e-6*symboltime_usec);
 	    	        if (verbose) printf("symbol time: %i usec\n", symboltime_usec);
                     if (verbose) printf("fastdim: %i\n",fastdim);
@@ -605,6 +615,8 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                 case GET_DATA:
                     nranges = fastdim - filter_delay;
+                    //std::cout << "fastdim: " << fastdim << std::endl;
+                    std::cout << "filter_delay: " << filter_delay << std::endl;
                     std::cout << "nranges: " << nranges << std::endl;
                     send(msgsock, &nranges, sizeof(nranges),0);
 

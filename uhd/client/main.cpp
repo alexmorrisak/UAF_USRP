@@ -29,7 +29,7 @@ int main(int argc, char *argv[]){
     int sockfd=0, n=0;
     int rval =0, status=0;
     struct sockaddr_in serv_addr;
-    struct soundingParms2 parms;
+    struct soundingParms2 parms, actual_parms;
     struct periodogramParms spect_parms;
     char usrpmsg;
 
@@ -42,7 +42,8 @@ int main(int argc, char *argv[]){
     struct tm * timeinfo;
     time(&rawtime);
     timeinfo = localtime(&rawtime);
-    //std::cout << rawtime << std::endl;
+    int unix_time = (int) time(NULL);
+    //time(&unix_time);
     char fname[80];
 
     //Data storage variables
@@ -52,7 +53,7 @@ int main(int argc, char *argv[]){
     std::vector<std::vector<float> > xmode;
     std::vector<float*> omode_ptrs;
     std::vector<float*> xmode_ptrs;
-    std::vector<uint32_t> ranges;
+    std::vector<float> ranges;
     std::vector<uint32_t> frequencies;
 
     //Variables for testing
@@ -172,13 +173,12 @@ int main(int argc, char *argv[]){
     printf ("connected!\n");
 
     strftime(fname, 80, "ionogram.%Y%m%d.%H%M.h5",timeinfo);
-    if (vm.count("write"))
-        file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
     step_freq = (stop_freq - start_freq) / nsteps;
     nominal_freq = start_freq;
     ifreq = 0;
-    while(nominal_freq < stop_freq){
+    //while(nominal_freq < stop_freq){
+    for (ifreq=0; ifreq<nsteps; ifreq++){
         /* Get the spectrum and then select the quietest frequency*/
         if (verbose) std::cout << "Grabbing spectrum\n";
         usrpmsg = LISTEN;
@@ -204,6 +204,12 @@ int main(int argc, char *argv[]){
         usrpmsg = SEND;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         send(sockfd, &parms, sizeof(parms), 0);
+        rval = recv(sockfd, &actual_parms, sizeof(actual_parms),0);
+        printf("Used frequency %i khz\n", actual_parms.freq_khz);
+        printf("Used %i pulses\n", actual_parms.num_pulses);
+        printf("Used first range of %i km\n", actual_parms.first_range_km);
+        printf("Used last range of %i km\n", actual_parms.last_range_km);
+        printf("Used resolution of %f km\n", actual_parms.range_res_km);
         rval = recv(sockfd, &status, sizeof(int),0);
 
         /* Process the data */
@@ -226,19 +232,20 @@ int main(int argc, char *argv[]){
         rxpow[1].resize(rxpow[1].size()+datalen);
         rxvel[0].resize(rxvel[0].size()+datalen);
         rxvel[1].resize(rxvel[1].size()+datalen);
-        recv(sockfd, &rxpow[0].front() + (ifreq*datalen), datalen*sizeof(float), 0);
-        recv(sockfd, &rxpow[1].front() + (ifreq*datalen), datalen*sizeof(float), 0);
-        recv(sockfd, &rxvel[0].front() + (ifreq*datalen), datalen*sizeof(float), 0);
-        recv(sockfd, &rxvel[1].front() + (ifreq*datalen), datalen*sizeof(float), 0);
+        std::cout << "vector size: " << rxpow[0].size() << std::endl;
+        recv(sockfd, &rxpow[0][ifreq*datalen], datalen*sizeof(float), 0);
+        recv(sockfd, &rxpow[1][ifreq*datalen], datalen*sizeof(float), 0);
+        recv(sockfd, &rxvel[0][ifreq*datalen], datalen*sizeof(float), 0);
+        recv(sockfd, &rxvel[1][ifreq*datalen], datalen*sizeof(float), 0);
 
         printf("Sounding %i of %i complete (%i kHz)\n", ifreq+1, nsteps, parms.freq_khz);
         nominal_freq += step_freq;
-	    ifreq++;
+	    //ifreq++;
     }
 
     ranges.resize(datalen);
     for (size_t i=0; i<ranges.size(); i++){
-        ranges[i] = first_range + i*(last_range-first_range)/ranges.size();
+        ranges[i] = first_range + i*(float)((last_range-first_range)/ranges.size());
     }
 
     /* Write the data to hdf5 file */
@@ -249,8 +256,12 @@ int main(int argc, char *argv[]){
         dataspace_id = H5Screate_simple(2, dims, NULL);
 
         /* Write omode power to file */
-        printf("OPower");
         sprintf(dset, "OPower");
+        std::cout << dset << std::endl;
+
+        file_id = H5Fcreate(fname, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        std::cout << fname << std::endl;
+
         dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
@@ -267,11 +278,12 @@ int main(int argc, char *argv[]){
         /* Write omode velocity to file */
         dataspace_id = H5Screate_simple(2, dims, NULL);
 
-        printf("OVelocity");
         sprintf(dset, "OVelocity");
+        std::cout << dset << std::endl;
 
         dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        std::cout << "wrote it\n";
 
         eval =H5Dwrite(dataset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT,
             &rxvel[0].front());
@@ -286,7 +298,6 @@ int main(int argc, char *argv[]){
         /* Write xmode power to file */
         dataspace_id = H5Screate_simple(2, dims, NULL);
 
-        printf("XPower");
         sprintf(dset, "XPower");
         dataset_id = H5Dcreate2(file_id, dset, H5T_IEEE_F32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -322,7 +333,7 @@ int main(int argc, char *argv[]){
         dims[0] = nsteps;
         dataspace_id = H5Screate_simple(1, dims, NULL);
 
-        attribute_id = H5Acreate2(file_id, "Frequencies(kHz)", H5T_STD_U32BE, dataspace_id,
+        attribute_id = H5Acreate2(file_id, "Frequencies (kHz)", H5T_STD_U32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT);
 
         eval =H5Awrite(attribute_id, H5T_NATIVE_UINT, &frequencies.front());
@@ -334,17 +345,44 @@ int main(int argc, char *argv[]){
         eval =H5Sclose(dataspace_id);
         if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
 
-        /* Create attributes for first range, last range */
+        /* Create attribute listing range bins */
         dims[0]=datalen;
         dataspace_id = H5Screate_simple(1, dims, NULL);
 
-        attribute_id = H5Acreate2(file_id, "Ranges(km)", H5T_STD_U32BE, dataspace_id,
+        attribute_id = H5Acreate2(file_id, "Ranges (km)", H5T_IEEE_F32BE, dataspace_id,
             H5P_DEFAULT, H5P_DEFAULT);
 
-        H5Awrite(attribute_id, H5T_NATIVE_UINT, &ranges.front());
+        H5Awrite(attribute_id, H5T_NATIVE_FLOAT, &ranges.front());
 
         H5Aclose(attribute_id);
 
+        eval =H5Sclose(dataspace_id);
+        if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
+
+        /* Create attribute stating range resolution */
+        dims[0]=1;
+        dataspace_id = H5Screate_simple(1, dims, NULL);
+
+        attribute_id = H5Acreate2(file_id, "Range Resolution (km)", H5T_IEEE_F32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT);
+
+        H5Awrite(attribute_id, H5T_NATIVE_FLOAT, &actual_parms.range_res_km);
+
+        H5Aclose(attribute_id);
+
+        /* Create attribute stating range resolution */
+        dims[0]=1;
+        dataspace_id = H5Screate_simple(1, dims, NULL);
+
+        attribute_id = H5Acreate2(file_id, "Time (Unix Seconds)", H5T_STD_I32BE, dataspace_id,
+            H5P_DEFAULT, H5P_DEFAULT);
+
+        //printf("range res: %f\n", );
+        H5Awrite(attribute_id, H5T_NATIVE_INT, &unix_time);
+
+        H5Aclose(attribute_id);
+
+        /*Close dataspace and hdf5 file*/
         eval =H5Sclose(dataspace_id);
         if (eval) std::cerr << "Error closing dataspace: " << fname << std::endl;
 

@@ -25,7 +25,6 @@
 
 #include <thread>
 
-
 typedef std::complex<int16_t>  sc16;
 extern int verbose;
 

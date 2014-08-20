@@ -1,7 +1,7 @@
 OS:=$(shell uname -s)
 
 CCpp=g++
-//CFLAGS=
+CFLAGS=-g
 //LFLAGS=-L"${HOME}/uhd/host/build/lib"
 libs=-lboost_program_options -lhdf5
 SOURCES=main.cpp
@@ -11,10 +11,10 @@ EXECUTABLE=client
 all: $(EXECUTABLE)
 
 $(EXECUTABLE): $(OBJECTS) 
-	$(CCpp) -o $@ $(OBJECTS) $(libs)
+	$(CCpp) $(CFLAGS) -o $@ $(OBJECTS) $(libs)
 
 .cpp.o:
-	$(CCpp) $< -o $@ -c
+	$(CCpp) $(CFLAGS) $< -o $@ -c
 
 clean:
 	rm -rf *.o client
