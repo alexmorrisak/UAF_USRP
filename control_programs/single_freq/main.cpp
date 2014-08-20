@@ -18,7 +18,7 @@
 #include <boost/program_options.hpp>
 #include <boost/format.hpp>
 
-#include "global_variables.h"
+#include "../../include/global_variables.h"
 #include "hdf5.h"
 
 namespace po = boost::program_options;

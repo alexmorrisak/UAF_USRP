@@ -14,7 +14,7 @@ CPP_SOURCES=main.cpp capture_spectrum.cpp \
 C_SOURCES=
 CPP_OBJECTS=$(CPP_SOURCES:.cpp=.o)
 C_OBJECTS=$(C_SOURCES:.c=.o)
-EXECUTABLE=sounder
+EXECUTABLE=ionosonde_server
 
 all: $(EXECUTABLE)
 

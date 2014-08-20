@@ -6,7 +6,7 @@ CFLAGS=-g
 libs=-lboost_program_options -lhdf5
 SOURCES=main.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
-EXECUTABLE=client
+EXECUTABLE=swept_freq
 
 all: $(EXECUTABLE)
 
