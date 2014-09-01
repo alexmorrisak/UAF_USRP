@@ -25,7 +25,7 @@ def get_options():
 options = get_options()
 fstring = "ionogram." + options.date + "." + options.time + ".h5"
 #print fstring
-f = h5py.File("/home/radar/UAF_USRP/uhd/client/"+fstring,'r')
+f = h5py.File("/home/radar/ionosonde_data/"+fstring,'r')
 #nfreqs = len(f.keys())/2;
 
 
