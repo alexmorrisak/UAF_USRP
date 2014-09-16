@@ -44,7 +44,7 @@ typedef std::complex<int16_t>  sc16;
 static bool stop_signal_called = false;
 void sig_int_handler(int){stop_signal_called = true;}
 
-int verbose = 1;
+int verbose = 10;
 int debug = 0;
 
 
@@ -182,6 +182,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     rval = recv_data(msgsock, &lparms, sizeof(lparms));
                     center_freq_khz = (lparms.end_freq_khz + lparms.start_freq_khz) / 2;
                     span_khz = lparms.end_freq_khz - lparms.start_freq_khz;
+                    if (span_khz == 0) span_khz = 1;
                     //if (span_khz > 400){
                     //    span_khz = 400;
                     //    lparms.start_freq_khz = 
@@ -221,10 +222,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                     std::cout << "symbol time: " << symboltime_usec << std::endl;
                     
-                    ipp_usec = (size_t) ceil(2*parms.last_range_km / 3.0e-1 / symboltime_usec);
+                    ipp_usec = (size_t) ceil(2*parms.last_range_km / 3.0e-1 / symboltime_usec / 100);
+                    ipp_usec *= 100;
                     ipp_usec *= symboltime_usec;
 
-                    nsamps_per_pulse = (unsigned int) (1.e-6*ipp_usec*RX_RATE);
+                    nsamps_per_pulse = (unsigned int) (ipp_usec*RX_RATE/1e6);
                     
                     std::cout << "oversample rate: " << osr << std::endl;
                     std::cout << "dmrate: " << dmrate << std::endl;
@@ -354,12 +356,12 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     tx_ontime = (float) tx_filt_buff0.size() / (TX_RATE) + 100e-6;
                     if (debug) std::cout << "tx_ontime: " << tx_ontime << std::endl;
                     //tx_ontime_usec = tx_filt_buff0.size() / TX_RATE / 1000 + 50;
-                    tx_filt_buff0.resize((ipp_usec * 1e-6*TX_RATE), 0);
-                    tx_filt_buff1.resize((ipp_usec * 1e-6*TX_RATE), 0);
+                    tx_filt_buff0.resize((ipp_usec * TX_RATE/1e6), 0);
+                    tx_filt_buff1.resize((ipp_usec * TX_RATE/1e6), 0);
                     if (verbose) std::cout << "ipp_usec: " << ipp_usec << std::endl;
                     if (verbose) std::cout << "TX_RATE: " << TX_RATE << std::endl;
                     if (verbose) std::cout << "tx_filt_buffx size: " << ipp_usec * TX_RATE << std::endl;
-                    if (verbose) std::cout << "tx_filt_buffx size: " << (size_t) (1.e-6*ipp_usec * TX_RATE) << std::endl;
+                    if (verbose) std::cout << "tx_filt_buffx size: " << (size_t) (ipp_usec * TX_RATE / 1e6) << std::endl;
 
                     //prepare rx information
                     ptime_eff = 3e8 / (2*MAX_VELOCITY*freq);
@@ -410,7 +412,9 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //parms.last_range_km = last_range_km;
                     parms.range_res_km = 1.5e-1*symboltime_usec;
                     fastdim = nsamps_per_pulse/dmrate;
+                    std::cout << "fastdim: " << fastdim << std::endl;
                     if (verbose) std::cout << "Done rxing 0\n";
+                    memset(&actual_parms,0,sizeof(actual_parms));
                     actual_parms.freq_khz = freq/1e3;
                     actual_parms.num_pulses = parms.num_pulses;
                     actual_parms.first_range_km = -1;
@@ -529,6 +533,15 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         filtvec_ptrs[1][0][i] = &filtvecs[1][0][i].front();
                         filtvec_ptrs[1][1][i] = &filtvecs[1][1][i].front();
                     }
+
+                    //send(msgsock, &return_status, sizeof(return_status),0);
+                    //break;
+
+                    printf("slowdim: %i\n",slowdim);
+                    printf("nsamps_per_pulse: %i\n",nsamps_per_pulse);
+                    printf("RX_RATE: %f\n",RX_RATE);
+                    printf("bandwidth: %f\n",bandwidth);
+                    printf("dmrate: %i\n",dmrate);
                     for (int mode=0; mode<2; mode++){
                         for (int pcode=0; pcode<2; pcode++){
                             rval = lp_filter(
@@ -578,19 +591,24 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
 
                     first_inx = osr*pcode0.size();
                     filter_delay = osr*pcode0.size() / 2;
+                    if (verbose){
+                        std::cout << "first inx plus filter delay: " << first_inx + filter_delay << std::endl;
+                    }
 
                     fpow[0].resize(nsamps_per_pulse/dmrate,0);
                     fpow[1].resize(nsamps_per_pulse/dmrate,0);
                     fvel[0].resize(nsamps_per_pulse/dmrate,0);
                     fvel[1].resize(nsamps_per_pulse/dmrate,0);
+                    std::cout << "About to do Doppler processing!!\n\n";
+                    std::cout << "slowdim: " << slowdim << "\n\n";
                     for (int mode=0; mode<2; mode++){
                         rval = doppler_process(
-                            ffvec_ptrs[mode],
+                            &ffvec_ptrs[mode].front(),
                             &fpow[mode].front(),
                             &fvel[mode].front(),
                             slowdim,
                             nsamps_per_pulse/dmrate,
-                            2,
+                            1,
                             first_inx+filter_delay);
                     }
                     send(msgsock, &return_status, sizeof(return_status),0);

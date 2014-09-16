@@ -47,6 +47,7 @@ void capture_spectrum(
     size_t nsamps = SAMPLE_RATE / (1e3*bandwidth_khz);
     size_t nbins = 1e-3*SAMPLE_RATE;
     size_t span = stop_freq_khz - start_freq_khz;
+    if (span==0) span =1;
     if (verbose){
         std::cout << "nsamps: " << nsamps << std::endl;
         std::cout << "nbins: " << nbins << std::endl;
@@ -69,7 +70,7 @@ void capture_spectrum(
     buff.resize(2); // Two receive channels
     buff_ptrs.resize(2); // Two receive channels
     for (int i=0; i<2; i++){
-        buff[i].resize(nsamps);
+        buff[i].resize(nave*nsamps);
         buff_ptrs[i] = &buff[i].front();
     }
     bool overflow_message = true;
@@ -99,43 +100,45 @@ void capture_spectrum(
                 "Unexpected error code 0x%x"
             ) % md.error_code));
         }
-    
-    if(in!=NULL){free(in);in=NULL;}
-    in =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nbins);
-    if(out!=NULL){free(out);out=NULL;}
-    out =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nbins);
-
-    //plan = fftw_plan_dft_1d(nsamps, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-    plan = fftw_plan_dft_1d(nbins, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
-
-    for (int i=0;i<nsamps;i++){
-       //in[i][0] = (hann_window[i]*rx_short_vecs[0][i].real());
-       //in[i][1] = (hann_window[i]*rx_short_vecs[0][i].imag());
-       in[i][0] = (double)buff[0][i].real();
-       in[i][1] = (double)buff[0][i].imag();
-    }
-    for (int i=nsamps;i<nbins;i++){
-       in[i][0] = (double)buff[0][i].real();
-       in[i][1] = (double)buff[0][i].imag();
-    }
-	
-    fftw_execute(plan);
-
-     //Add the current spectrum to the running total
-    //if (num_total_samps != 0){
-     for (int i=0;i<nbins;i++){
-             tmp_pwr[i] += (out[i][0]*out[i][0] + out[i][1]*out[i][1]) / 
-                     (double)(nsamps*nsamps*nave);
-     }
-    //}
-     //Done adding spectrum to running total
-    num_total_samps += num_rx_samps;
-
-    fftw_destroy_plan(plan);
-    if (in!=NULL) {free(in); in=NULL;}
-    if (out!=NULL) {free(out); out=NULL;}
-
    }
+    
+    for (int i=0; i<nave; i++){
+        if(in!=NULL){free(in);in=NULL;}
+        in =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nbins);
+        if(out!=NULL){free(out);out=NULL;}
+        out =(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*nbins);
+
+        //plan = fftw_plan_dft_1d(nsamps, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+        plan = fftw_plan_dft_1d(nbins, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+
+        for (int i=0;i<nsamps;i++){
+           //in[i][0] = (hann_window[i]*rx_short_vecs[0][i].real());
+           //in[i][1] = (hann_window[i]*rx_short_vecs[0][i].imag());
+           in[i][0] = (double)buff[0][i].real();
+           in[i][1] = (double)buff[0][i].imag();
+        }
+        for (int i=nsamps;i<nbins;i++){
+           in[i][0] = 0.;
+           in[i][1] = 0.;
+        }
+            
+        fftw_execute(plan);
+
+         //Add the current spectrum to the running total
+        //if (num_total_samps != 0){
+         for (int i=0;i<nbins;i++){
+                 tmp_pwr[i] += (out[i][0]*out[i][0] + out[i][1]*out[i][1]) / 
+                         (double)(nsamps*nsamps*nave);
+         }
+        //}
+         //Done adding spectrum to running total
+        //num_total_samps += num_rx_samps;
+
+        fftw_destroy_plan(plan);
+        if (in!=NULL) {free(in); in=NULL;}
+        if (out!=NULL) {free(out); out=NULL;}
+    }
+
 
   //for (int i=0;i<nsamps;i++){
   //  printf("%i, %f\n",i, 10*log(tmp_pwr[i]));

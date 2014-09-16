@@ -26,7 +26,7 @@ int matched_filter(
 );
 
 int doppler_process(
-    std::vector<std::complex<float> *> indata,
+    std::complex<float>** indata,
     float* outpow,
     float* outvel,
     int slowdim,

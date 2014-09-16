@@ -17,7 +17,7 @@
  * doppler_process function
  **********************************************************************/
 int doppler_process(
-    std::vector<std::complex<float> *> indata,
+    std::complex<float>** indata,
     float* outpow,
     float* outvel,
     int slowdim,
@@ -42,6 +42,7 @@ int doppler_process(
 
     // Calculate the FFT for each range bin
     for (int irange=0; irange<fastdim; irange++){
+        //std::cout << "Exectuting FFT for range " << irange << std::endl;
         for (int i=0; i<slowdim;i++){
             in[i][0] = indata[i][irange].real();
             in[i][1] = indata[i][irange].imag();
@@ -54,6 +55,7 @@ int doppler_process(
         for (int i=0; i<osr*slowdim; i++){
             doppler_grid[i][irange] = std::complex<double>(out[i][0], out[i][1]);
         }
+        //std::cout << "Done exectuting FFT for range " << irange << std::endl;
     }
     //for (int i=0; i<fastdim; i++){
     //    std::cout << i << " ";

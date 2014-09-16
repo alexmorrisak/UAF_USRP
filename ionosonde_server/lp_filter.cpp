@@ -13,6 +13,7 @@
 #include <vector>
 
 extern int verbose;
+//int verbose=2;
 
 /***********************************************************************
  * lp_filter function
@@ -67,11 +68,11 @@ int lp_filter(
             outdata[ipulse][isamp/decimrate] = temp;
             DC += temp;
             //printf("out %i,%i: %.2f\n",ipulse,isamp/decimrate,10*log10(std::abs(outdata[ipulse][isamp/decimrate])));
-            if (debug) {
-                printf("out %i,%i: (%.1f, %.1f)\n",ipulse,isamp/decimrate,
-                    outdata[ipulse][isamp/decimrate].real(),
-                    outdata[ipulse][isamp/decimrate].imag());
-            }
+            //if (debug) {
+            //    printf("out %i,%i: (%.1f, %.1f)\n",ipulse,isamp/decimrate,
+            //        outdata[ipulse][isamp/decimrate].real(),
+            //        outdata[ipulse][isamp/decimrate].imag());
+            //}
         }
         //Remove the dc offset
         //DC /= (fastdim);
@@ -82,15 +83,13 @@ int lp_filter(
 
     }
 
-
-
-
+    std::cout << "Ending lp_filter\n";
     return 0;
 }
 
 //int main(){
-//    std::vector<std::vector<std::complex<float> > > invecs(1);
-//    std::vector<std::vector<std::complex<float> > > outvecs(1);
+//    std::vector<std::vector<std::complex<float> > > invecs(10);
+//    std::vector<std::vector<std::complex<float> > > outvecs(10);
 //    std::vector<std::complex<float> *> in;
 //    std::vector<std::complex<float> *> out;
 //    int nsamps = 16;
@@ -98,13 +97,20 @@ int lp_filter(
 //    float bw = 20;
 //    int dmrate = 1;
 //
-//    invecs[0].resize(nsamps,10.);
-//    in.resize(nsamps);
-//    in[0] = &invecs[0].front();
+//    in.resize(10);
+//    for (int i=0; i<10; i++){
+//        invecs[i].resize(nsamps,10.);
+//    	in[i] = &invecs[i].front();
+//    }
 //
-//    outvecs[0].resize(nsamps);
-//    out.resize(nsamps);
-//    out[0] = &outvecs[0].front();
+//    out.resize(10);
+//    for (int i=0; i<10; i++){
+//        outvecs[i].resize(nsamps,10.);
+//    	out[i] = &outvecs[i].front();
+//    }
+//    //outvecs[0].resize(nsamps);
+//    //out.resize(nsamps);
+//    //out[0] = &outvecs[0].front();
 //
 //    int rval = lp_filter(
 //        in,

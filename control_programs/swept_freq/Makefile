@@ -6,7 +6,8 @@ CFLAGS=-g
 libs=-lboost_program_options -lhdf5
 SOURCES=main.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
-EXECUTABLE=${SOUNDER_PATH}/build/swept_freq
+#EXECUTABLE=${SOUNDER_DIR}/build/swept_freq
+EXECUTABLE=swept_freq
 
 all: $(EXECUTABLE)
 
