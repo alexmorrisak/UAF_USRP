@@ -185,10 +185,11 @@ int main(int argc, char *argv[]){
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         size_t search_range = (int) step_freq / 2;
         if (search_range%2 !=0) search_range-=1;
+        if (search_range < 20) search_range=20;
         spectrum.resize(search_range);
         spect_parms.start_freq_khz = nominal_freq-search_range/2;
         spect_parms.end_freq_khz = nominal_freq+search_range/2;
-        spect_parms.bandwidth_khz = 10;
+        spect_parms.bandwidth_khz = 10; //This could be adjusted based on the operating waveform bandwidth..
         send(sockfd, &spect_parms, sizeof(spect_parms), 0);
         recv(sockfd, &spectrum.front(), search_range*sizeof(float), 0);
         min_inx = 0;
@@ -203,7 +204,10 @@ int main(int argc, char *argv[]){
         if (verbose) std::cout << "Performing sounding\n";
         usrpmsg = SEND;
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
+        printf("sizeof usrpmsg: %i\n",sizeof(usrpmsg));
         send(sockfd, &parms, sizeof(parms), 0);
+        printf("sizeof parms: %i\n",sizeof(parms));
+        printf("sizeof actual_parms: %i\n",sizeof(actual_parms));
         rval = recv(sockfd, &actual_parms, sizeof(actual_parms),0);
         printf("Used frequency %i khz\n", actual_parms.freq_khz);
         printf("Used %i pulses\n", actual_parms.num_pulses);
