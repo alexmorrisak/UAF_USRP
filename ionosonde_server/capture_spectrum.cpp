@@ -38,7 +38,7 @@ void capture_spectrum(
 ){
     int debug = 0;
     if (verbose) std::cout << "Entering capture_spectrum\n";
-    float center_freq = 1e3*(stop_freq_khz - start_freq_khz)/2;
+    float center_freq = 1.e3*(stop_freq_khz - start_freq_khz)/2;
 
     int num_total_samps = 0;
     int nave = 100;

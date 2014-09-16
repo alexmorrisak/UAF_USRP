@@ -210,7 +210,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 case SEND:
                     if (verbose) printf("Starting sounding.\n");
 
-                    printf("sizeof(parms): %i\n", sizeof(parms));
                     rval = recv_data(msgsock, &parms, sizeof(parms));
 
                     osr = parms.over_sample_rate;
@@ -428,9 +427,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     printf("Used last range of %i km\n", actual_parms.last_range_km);
                     printf("Used resolution of %f km\n", actual_parms.range_res_km);
 
-                    printf("sizeof(actual_parms): %i\n", sizeof(actual_parms));
                     send(msgsock, &actual_parms, sizeof(actual_parms),0);
-                    printf("sizeof(return_status): %i\n", sizeof(return_status));
                     send(msgsock, &return_status, sizeof(return_status),0);
                     if (verbose) std::cout << "Done rxing\n";
                     break;
