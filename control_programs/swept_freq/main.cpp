@@ -24,7 +24,7 @@
 namespace po = boost::program_options;
 
 int main(int argc, char *argv[]){
-    int verbose =1;
+    int verbose =0;
     /* Socket and status variables*/
     int sockfd=0, n=0;
     int rval =0, status=0;
@@ -111,50 +111,7 @@ int main(int argc, char *argv[]){
     parms.over_sample_rate = osr;
     parms.range_res_km = resolution;
 
-    //size_t temp_symboltime_usec = resolution / 1.5e-1;
-    //size_t temp_dmrate = (size_t) ceil(temp_symboltime_usec * RX_RATE / (OSR*1000));
-    ////if (temp_dmrate%2 == 1) temp_dmrate -= 1;
-    //while (temp_dmrate%OSR != 0) temp_dmrate -= 1;
-    ////parms.symboltime_usec = OSR*1000*temp_dmrate/RX_RATE;
-
-
-    //size_t temp_pfactor = (size_t) ceil(2*last_range / 3.0e-1 / parms.symboltime_usec);
-    //parms.pulsetime_usec = temp_pfactor * parms.symboltime_usec;
-
-    //std::cout << "Using pulse time: " << parms.pulsetime_usec << std::endl;
-    //std::cout << "symbol time: " << parms.symboltime_usec << std::endl;
-    //std::cout << "Using range resolution: " << 1.5e-1*parms.symboltime_usec << std::endl;
-
-
-    //size_t max_txtime_usec = (size_t) floor(2*first_range / 3.0e-1);
-    //size_t max_code_length = (size_t) floor(max_txtime_usec / parms.symboltime_usec);
-    //if (max_code_length < 4){
-    //    sprintf(parms.pc_str,"rect");
-    //}
-    //else if (max_code_length < 8){
-    //    sprintf(parms.pc_str,"golay4");
-    //}
-    //else if (max_code_length < 10){
-    //    sprintf(parms.pc_str,"golay8");
-    //}
-    //else if (max_code_length < 16){
-    //    sprintf(parms.pc_str,"golay10");
-    //}
-    //else{
-    //    sprintf(parms.pc_str,"golay16");
-    //}
-    //std::cout << "Using pcode: " << parms.pc_str << std::endl;
-        
-
-    //parms.pulsetime_usec = 5000;
-
-    //sprintf(parms.pc_str,"golay8");
-    //parms.nsamps_per_pulse = (size_t) (1e-6*parms.pulsetime_usec*RX_RATE);
     size_t datalen;
-
-    printf("\nmsg values\n");
-    //printf("freq: %i kHz\n", nominal_freq);
-    //printf("nsamps per pulse: %i\n", parms.nsamps_per_pulse);
 
     if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1){
         printf("Error in creating socket\n");
@@ -176,8 +133,6 @@ int main(int argc, char *argv[]){
 
     step_freq = (stop_freq - start_freq) / nsteps;
     nominal_freq = start_freq;
-    ifreq = 0;
-    //while(nominal_freq < stop_freq){
     for (ifreq=0; ifreq<nsteps; ifreq++){
         /* Get the spectrum and then select the quietest frequency*/
         if (verbose) std::cout << "Grabbing spectrum\n";
@@ -185,20 +140,17 @@ int main(int argc, char *argv[]){
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         size_t search_range = (int) step_freq / 2;
         if (search_range%2 !=0) search_range-=1;
-        if (search_range < 20) search_range=20;
+        if (search_range < MIN_CLRSEARCH_SPAN) search_range=MIN_CLRSEARCH_SPAN;
+        if (search_range > MAX_CLRSEARCH_SPAN) search_range=MAX_CLRSEARCH_SPAN;
         spectrum.resize(search_range);
         spect_parms.start_freq_khz = nominal_freq-search_range/2;
         spect_parms.end_freq_khz = nominal_freq+search_range/2;
-        spect_parms.bandwidth_khz = 10; //This could be adjusted based on the operating waveform bandwidth..
+        spect_parms.bandwidth_khz = (int) 1.e3*1.5e-1 / resolution; 
         send(sockfd, &spect_parms, sizeof(spect_parms), 0);
         recv(sockfd, &spectrum.front(), search_range*sizeof(float), 0);
         min_inx = 0;
-        printf("spectrum %i: %f\n", spect_parms.start_freq_khz, spectrum[0]);
         for (int i=1; i<spectrum.size(); i++){
-            if (spectrum[i] < spectrum[min_inx]) {
-                min_inx = i;
-                printf("spectrum %i: %f\n", i+spect_parms.start_freq_khz, spectrum[i]);
-            }
+            if (spectrum[i] < spectrum[min_inx]) min_inx = i;
         }
         parms.freq_khz = min_inx + spect_parms.start_freq_khz;
         frequencies.push_back(parms.freq_khz);
@@ -210,11 +162,13 @@ int main(int argc, char *argv[]){
         send(sockfd, &usrpmsg, sizeof(usrpmsg), 0);
         send(sockfd, &parms, sizeof(parms), 0);
         rval = recv(sockfd, &actual_parms, sizeof(actual_parms),0);
-        printf("Used frequency %i khz\n", actual_parms.freq_khz);
-        printf("Used %i pulses\n", actual_parms.num_pulses);
-        printf("Used first range of %i km\n", actual_parms.first_range_km);
-        printf("Used last range of %i km\n", actual_parms.last_range_km);
-        printf("Used resolution of %f km\n", actual_parms.range_res_km);
+        if (verbose){
+            printf("Used frequency %i khz\n", actual_parms.freq_khz);
+            printf("Used %i pulses\n", actual_parms.num_pulses);
+            printf("Used first range of %i km\n", actual_parms.first_range_km);
+            printf("Used last range of %i km\n", actual_parms.last_range_km);
+            printf("Used resolution of %f km\n", actual_parms.range_res_km);
+        }
         rval = recv(sockfd, &status, sizeof(int),0);
 
         /* Process the data */
@@ -237,7 +191,6 @@ int main(int argc, char *argv[]){
         rxpow[1].resize(rxpow[1].size()+datalen);
         rxvel[0].resize(rxvel[0].size()+datalen);
         rxvel[1].resize(rxvel[1].size()+datalen);
-        std::cout << "vector size: " << rxpow[0].size() << std::endl;
         recv(sockfd, &rxpow[0][ifreq*datalen], datalen*sizeof(float), 0);
         recv(sockfd, &rxpow[1][ifreq*datalen], datalen*sizeof(float), 0);
         recv(sockfd, &rxvel[0][ifreq*datalen], datalen*sizeof(float), 0);
@@ -250,7 +203,7 @@ int main(int argc, char *argv[]){
 
     ranges.resize(datalen);
     for (size_t i=0; i<ranges.size(); i++){
-        ranges[i] = first_range + i*(float)((last_range-first_range)/ranges.size());
+        ranges[i] = first_range + i*((float)(last_range-first_range)/ranges.size());
     }
 
     /* Write the data to hdf5 file */

@@ -41,7 +41,7 @@ int lp_filter(
     }
     filter_taps[ntaps/2] = std::complex<float>(bw/samprate,0);
 
-    if(true){
+    if(debug){
         for (int i=0; i<ntaps; i++){
             printf("%i: (%.4f,%.4f)\n", i, filter_taps[i].real(), filter_taps[i].imag());
         }

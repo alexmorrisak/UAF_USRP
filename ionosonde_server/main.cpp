@@ -171,21 +171,12 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
             switch (usrpmsg){
                 case EXIT:
                     if (verbose) printf("Client done\n");
-                    //banks = usrp->get_gpio_banks(0);
-                    //for (size_t i=0; i<banks.size(); i++){
-                    //    std::cout << banks[i] << std::endl;
-                    //}
-                    //return 0;
                     break;
                 case LISTEN:
                     if (verbose) printf("Starting Listening.\n");
                     rval = recv_data(msgsock, &lparms, sizeof(lparms));
                     center_freq_khz = (lparms.end_freq_khz + lparms.start_freq_khz) / 2;
                     span_khz = lparms.end_freq_khz - lparms.start_freq_khz;
-                    if (span_khz == 0) span_khz = 1;
-                    //if (span_khz > 400){
-                    //    span_khz = 400;
-                    //    lparms.start_freq_khz = 
                     if (verbose){
                         std::cout << "start freq: " << lparms.start_freq_khz << std::endl;
                         std::cout << "end freq: " << lparms.end_freq_khz << std::endl;
