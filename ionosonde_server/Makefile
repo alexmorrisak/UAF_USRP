@@ -2,7 +2,7 @@ OS:=$(shell uname -s)
 
 CCpp=g++ -std=c++0x
 CC=gcc
-CFLAGS=-c -g3 -o3
+CFLAGS=-c -g3
 common_libs=-lm -lrt -luhd -lfftw3 -lboost_system -lboost_thread -lboost_filesystem
 #LFLAGS=-L"${HOME}/uhd/host/build/lib"
 INCLUDES=-I"${HOME}/uhd/host/include" -I"${HOME}/uhd/host/include/uhd/types" \

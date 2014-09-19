@@ -24,6 +24,7 @@
 #include <fftw3.h>
 
 #include <thread>
+#include "../include/global_variables.h"
 
 typedef std::complex<int16_t>  sc16;
 extern int verbose;
@@ -70,8 +71,8 @@ void transceive(
     vec_ptr.resize(1);
     //vec_ptr[0] = &txbuff->front();
     
-    usrp->set_gpio_attr("TXA","CTRL",0x0, 0x60);
-    usrp->set_gpio_attr("TXA","DDR",0x60, 0x60);
+    usrp->set_gpio_attr("RXA","CTRL",0x0, TR_BIT); //GPIO mode
+    usrp->set_gpio_attr("RXA","DDR",TR_BIT, TR_BIT); //Direction out
     
     //create metadata tags for receive stream
     uhd::rx_metadata_t rxmd;
@@ -101,7 +102,7 @@ void transceive(
         float timeout = 1.1;
         
         usrp->set_command_time(start_time-50e-6,0);
-        usrp->set_gpio_attr("TXA","OUT",0x60, 0x60);
+        usrp->set_gpio_attr("RXA","OUT",TR_BIT, TR_BIT);
         
         if (ipulse==0){
             if (verbose) std::cout << "time spec: " << stream_cmd.time_spec.get_real_secs() << std::endl;
@@ -110,7 +111,7 @@ void transceive(
         }
         
         usrp->set_command_time(start_time+tx_ontime,0);
-        usrp->set_gpio_attr("TXA","OUT",0x0, 0x60);
+        usrp->set_gpio_attr("RXA","OUT",0x0, TR_BIT);
         
         size_t acc_samps=0;
         if (ipulse%2 == 0) {

@@ -1,12 +1,39 @@
 /*Port number that client and server use*/
 #define HOST_PORT 45001
-/*Definitions of commands that client gives to server*/
+
+/*Definitions of tcp/ip commands that client gives to server*/
 #define SEND 's'
 #define LISTEN 'l'
 #define EXIT 'x'
 #define GET_DATA 'd'
 #define PROCESS 'p'
 
+/*Definitions of bits used for GPIO control*/
+#define TR_BIT 0x02
+#define ATTEN_CTRL_LO 0x04 //Are LO and HI swapped..? FIXME
+#define ATTEN_CTRL_HI 0x08
+#define LP_FILT_CTRL_HI 0x10
+#define LP_FILT_CTRL_LO 0x20
+#define HP_FILT_CTRL_HI 0x40
+#define HP_FILT_CTRL_LO 0x80
+
+/*Definitions of settings used for filter selection*/
+#define LPF_32 0x0
+#define LPF_16 LP_FILT_CTRL_LO
+#define LPF_8 LP_FILT_CTRL_HI
+#define LPF_4 LP_FILT_CTRL_LO | LP_FILT_CTRL_HI
+
+#define HPF_1 0x0
+#define HPF_2 HP_FILT_CTRL_LO
+#define HPF_4 HP_FILT_CTRL_HI
+#define HPF_8 HP_FILT_CTRL_LO | HP_FILT_CTRL_HI
+
+#define ATTEN_0 0x0
+#define ATTEN_6 ATTEN_CTRL_LO
+#define ATTEN_12 ATTEN_CTRL_HI
+#define ATTEN_18 ATTEN_CTRL_HI | ATTEN_CTRL_LO
+
+/*General operational global variables*/
 #define MAX_VELOCITY 100 //The maximum unambiguous Doppler velocity. Low number improves computational efficiency
 #define OSR 1 //Factor by which each range gate is oversampled.
 #define TX_RATE 1000e3 //Sample rate "over-the-wire" between host computer and USRP

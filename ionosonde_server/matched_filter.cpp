@@ -27,10 +27,6 @@ int matched_filter(
 ){
     int debug = 0;
     int ntaps = osr*pcode_length;
-    std::cout << "entering matched filter. ntaps: " << ntaps <<std::endl;
-    std::cout << "slowdim: " << slowdim <<std::endl;
-    std::cout << "fastdim: " << fastdim <<std::endl;
-    std::cout << "ntaps: " << ntaps <<std::endl;
     std::vector<std::complex<float> > filter_taps[2];
     for (int i=0; i<2; i++){
         filter_taps[i].resize(ntaps);

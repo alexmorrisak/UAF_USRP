@@ -44,9 +44,88 @@ typedef std::complex<int16_t>  sc16;
 static bool stop_signal_called = false;
 void sig_int_handler(int){stop_signal_called = true;}
 
-int verbose = 10;
+int verbose = 0;
 int debug = 0;
 
+void choose_pcode(std::vector<float>* pcode0, std::vector<float>* pcode1, size_t max_code_length){
+    if (max_code_length < 4){
+        *pcode0=RECT;
+        *pcode1=RECT;
+    }
+    else if (max_code_length < 8){
+        *pcode0=GOLAY_4_0;
+        *pcode1=GOLAY_4_1;
+    }
+    else if (max_code_length < 10){
+        *pcode0=GOLAY_8_0;
+        *pcode1=GOLAY_8_1;
+    }
+    else if (max_code_length < 16){
+        *pcode0=GOLAY_10_0;
+        *pcode1=GOLAY_10_1;
+    }
+    else{
+        *pcode0=GOLAY_16_0;
+        *pcode1=GOLAY_16_1;
+    }
+}
+
+void set_frontend_parms(int freq, uhd::usrp::multi_usrp::sptr usrp){
+    uint32_t ctrl_bits = 0x00;
+
+    printf("Control_bits: %x\n", ctrl_bits);
+    /*Configure control bits for low pass filter*/
+    printf("freq: %i\n", freq);
+    if (freq > 12e6) {
+        ctrl_bits |= LPF_32; //Use low pass cutoff of 32 MHz
+    }
+    else if (freq < 12e6 && freq > 6e6) {
+        ctrl_bits |= LPF_16; //Use low pass cutoff of 16 MHz
+    }
+    else if (freq < 6e6 && freq > 3e6){
+        ctrl_bits |= LPF_8; //Use low pass cutoff of 8 MHz
+    }
+    else if (freq < 3e6){
+        ctrl_bits |= LPF_4; //Use low pass cutoff of 4 MHz
+    }
+    printf("Control_bits: %x\n", ctrl_bits);
+
+    /*Configure control bits for hi pass filter*/
+    if (freq < 2e6) {
+        ctrl_bits |= HPF_1; //Use hipass cutoff of 1 MHz
+    }
+    else if (freq > 2e6 && freq < 6e6) {
+        ctrl_bits |= HPF_2; //Use hi pass cutoff of 2 MHz
+    }
+    else if (freq > 6e6 && freq > 12e6){
+        ctrl_bits |= HPF_4; //Use hi pass cutoff of 4 MHz
+    }
+    else if (freq > 12e6){
+        ctrl_bits |= HPF_8; //Use hi pass cutoff of 8 MHz
+    }
+
+    /*Configure attenuation bits*/
+    // ..?
+
+    /* Send bits to USRP after configuring GPIO*/
+    printf("pre Control_bits: %x\n", ctrl_bits);
+    usrp->set_gpio_attr("RXA","CTRL",0x0, 0xfc); //GPIO mode
+    usrp->set_gpio_attr("RXA","DDR",0xfc, 0xfc); //Direction out
+    usrp->set_gpio_attr("RXA","OUT",0x0,0xfc);
+    usrp->set_gpio_attr("RXA","OUT",ctrl_bits,0xfc);
+    printf("post Control_bits: %x\n", ctrl_bits);
+
+    /*Configure TX front-end to use the proper output port*/
+    if (freq < XOVER_FREQ){
+        if (verbose) std::cout << "Using antenna A\n";
+        usrp->set_tx_subdev_spec(std::string("A:A"));
+    }
+    else {
+        if (verbose) std::cout << "Using antenna B\n";
+        usrp->set_tx_subdev_spec(std::string("A:B"));
+    }
+    
+}
 
 /***********************************************************************
  * Main function
@@ -166,7 +245,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
         //std::vector<std::string> banks;
         while(true){
             rval = recv_data(msgsock, &usrpmsg, sizeof(usrpmsg));
-            if (rval <= 0) std::cout << "breaking..\n";
+            if (verbose) if (rval <= 0) std::cout << "breaking..\n";
             if (rval <= 0) break;
             switch (usrpmsg){
                 case EXIT:
@@ -211,57 +290,30 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //while (dmrate%osr != 0) dmrate -= 1;
                     symboltime_usec = osr*1e6*dmrate/RX_RATE;
 
-                    std::cout << "symbol time: " << symboltime_usec << std::endl;
-                    
                     ipp_usec = (size_t) ceil(2*parms.last_range_km / 3.0e-1 / symboltime_usec / 100);
                     ipp_usec *= 100;
                     ipp_usec *= symboltime_usec;
 
                     nsamps_per_pulse = (unsigned int) (ipp_usec*RX_RATE/1e6);
                     
-                    std::cout << "oversample rate: " << osr << std::endl;
-                    std::cout << "dmrate: " << dmrate << std::endl;
-                    std::cout << "nsamps per pulse: " << nsamps_per_pulse << std::endl;
-                    std::cout << "Using pulse time: " << ipp_usec << std::endl;
-                    std::cout << "Using range resolution: " << 1.5e-1*symboltime_usec << std::endl;
-                    
-                    
                     max_code_length = (size_t) floor(2*parms.first_range_km / 3.0e-1 / symboltime_usec);
                     std::cout << "max code length: " << max_code_length << std::endl;
-                    if (max_code_length < 4){
-                        pcode0=RECT;
-                        pcode1=RECT;
-                    }
-                    else if (max_code_length < 8){
-                        pcode0=GOLAY_4_0;
-                        pcode1=GOLAY_4_1;
-                    }
-                    else if (max_code_length < 10){
-                        pcode0=GOLAY_8_0;
-                        pcode1=GOLAY_8_1;
-                    }
-                    else if (max_code_length < 16){
-                        pcode0=GOLAY_10_0;
-                        pcode1=GOLAY_10_1;
-                    }
-                    else{
-                        pcode0=GOLAY_16_0;
-                        pcode1=GOLAY_16_1;
-                    }
+                    choose_pcode(&pcode0, &pcode1, max_code_length);
 
                     for (int i=0; i<pcode0.size(); i++){
                         if (verbose) std::cout << pcode0[i] << " " << pcode1[i] << std::endl;
                     }
                             
-	                freq = 1e3*parms.freq_khz;
-                    if (freq < XOVER_FREQ){
-                        if (verbose) std::cout << "Using antenna A\n";
-                        usrp->set_tx_subdev_spec(std::string("A:A"));
-                    }
-                    else {
-                        if (verbose) std::cout << "Using antenna B\n";
-                        usrp->set_tx_subdev_spec(std::string("A:B"));
-                    }
+	            freq = 1e3*parms.freq_khz;
+                    set_frontend_parms(freq, usrp);
+                    //if (freq < XOVER_FREQ){
+                    //    if (verbose) std::cout << "Using antenna A\n";
+                    //    usrp->set_tx_subdev_spec(std::string("A:A"));
+                    //}
+                    //else {
+                    //    if (verbose) std::cout << "Using antenna B\n";
+                    //    usrp->set_tx_subdev_spec(std::string("A:B"));
+                    //}
 
 	                //configure the USRP according to the arguments from the client
                     for (size_t i=0; i<usrp->get_rx_num_channels(); i++){
@@ -411,12 +463,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     actual_parms.first_range_km = -1;
                     actual_parms.last_range_km = -1;
                     actual_parms.range_res_km = parms.range_res_km;
-
-                    printf("Used frequency %i khz\n", actual_parms.freq_khz);
-                    printf("Used %i pulses\n", actual_parms.num_pulses);
-                    printf("Used first range of %i km\n", actual_parms.first_range_km);
-                    printf("Used last range of %i km\n", actual_parms.last_range_km);
-                    printf("Used resolution of %f km\n", actual_parms.range_res_km);
 
                     send(msgsock, &actual_parms, sizeof(actual_parms),0);
                     send(msgsock, &return_status, sizeof(return_status),0);
