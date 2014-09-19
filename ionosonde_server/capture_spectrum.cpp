@@ -21,7 +21,9 @@
 #include <unistd.h>
 #include <fftw3.h>
 
-#define SAMPLE_RATE 1e6
+#include "../include/global_variables.h"
+
+
 typedef std::complex<int16_t>  sc16;
 extern int verbose;
 
@@ -45,7 +47,7 @@ void capture_spectrum(
     //int nsamps = 100;
     size_t start_inx;
     size_t nsamps = SAMPLE_RATE / (1e3*bandwidth_khz);
-    size_t nbins = 1e-3*SAMPLE_RATE;
+    size_t nbins = SAMPLE_RATE / 1e3;
     size_t span = stop_freq_khz - start_freq_khz;
     if (span==0) span =1;
     if (verbose){
@@ -85,22 +87,22 @@ void capture_spectrum(
 
     usrp->issue_stream_cmd(stream_cmd);
     md.error_code = uhd::rx_metadata_t::ERROR_CODE_NONE;
-    while(num_total_samps != nave*nsamps){
+    //while(num_total_samps != nave*nsamps){
 	timeout = 0.1;
         size_t num_rx_samps = rx_stream->recv(buff_ptrs, buff[0].size(), md, timeout);
         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_TIMEOUT) {
             std::cerr << boost::format("Timeout while streaming") << std::endl;
-            break;
+            //break;
         }
         if (md.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW){
-            continue;
+            //continue;
         }
         if (md.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE){
             throw std::runtime_error(str(boost::format(
                 "Unexpected error code 0x%x"
             ) % md.error_code));
         }
-   }
+   //}
     
     for (int i=0; i<nave; i++){
         if(in!=NULL){free(in);in=NULL;}

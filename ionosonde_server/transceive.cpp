@@ -101,8 +101,8 @@ void transceive(
         
         float timeout = 1.1;
         
-        usrp->set_command_time(start_time-50e-6,0);
-        usrp->set_gpio_attr("RXA","OUT",TR_BIT, TR_BIT);
+        //usrp->set_command_time(start_time-50e-6,0);
+        //usrp->set_gpio_attr("RXA","OUT",TR_BIT, TR_BIT);
         
         if (ipulse==0){
             if (verbose) std::cout << "time spec: " << stream_cmd.time_spec.get_real_secs() << std::endl;
@@ -110,8 +110,8 @@ void transceive(
             usrp->issue_stream_cmd(stream_cmd);
         }
         
-        usrp->set_command_time(start_time+tx_ontime,0);
-        usrp->set_gpio_attr("RXA","OUT",0x0, TR_BIT);
+        //usrp->set_command_time(start_time+tx_ontime,0);
+        //usrp->set_gpio_attr("RXA","OUT",0x0, TR_BIT);
         
         size_t acc_samps=0;
         if (ipulse%2 == 0) {

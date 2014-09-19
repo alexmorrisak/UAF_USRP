@@ -156,6 +156,9 @@ int main(int argc, char *argv[]){
         frequencies.push_back(parms.freq_khz);
         rval = recv(sockfd, &status, sizeof(int),0);
 
+        //parms.freq_khz = nominal_freq;
+        //frequencies.push_back(parms.freq_khz);
+
         /* Perform the sounding */
         if (verbose) std::cout << "Performing sounding\n";
         usrpmsg = SEND;

@@ -73,9 +73,7 @@ void choose_pcode(std::vector<float>* pcode0, std::vector<float>* pcode1, size_t
 void set_frontend_parms(int freq, uhd::usrp::multi_usrp::sptr usrp){
     uint32_t ctrl_bits = 0x00;
 
-    printf("Control_bits: %x\n", ctrl_bits);
     /*Configure control bits for low pass filter*/
-    printf("freq: %i\n", freq);
     if (freq > 12e6) {
         ctrl_bits |= LPF_32; //Use low pass cutoff of 32 MHz
     }
@@ -88,7 +86,6 @@ void set_frontend_parms(int freq, uhd::usrp::multi_usrp::sptr usrp){
     else if (freq < 3e6){
         ctrl_bits |= LPF_4; //Use low pass cutoff of 4 MHz
     }
-    printf("Control_bits: %x\n", ctrl_bits);
 
     /*Configure control bits for hi pass filter*/
     if (freq < 2e6) {
@@ -108,12 +105,10 @@ void set_frontend_parms(int freq, uhd::usrp::multi_usrp::sptr usrp){
     // ..?
 
     /* Send bits to USRP after configuring GPIO*/
-    printf("pre Control_bits: %x\n", ctrl_bits);
     usrp->set_gpio_attr("RXA","CTRL",0x0, 0xfc); //GPIO mode
     usrp->set_gpio_attr("RXA","DDR",0xfc, 0xfc); //Direction out
     usrp->set_gpio_attr("RXA","OUT",0x0,0xfc);
     usrp->set_gpio_attr("RXA","OUT",ctrl_bits,0xfc);
-    printf("post Control_bits: %x\n", ctrl_bits);
 
     /*Configure TX front-end to use the proper output port*/
     if (freq < XOVER_FREQ){
@@ -239,7 +234,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
     while(true){
         listen(sock,1);
         //rval = 1;
-        if (verbose) printf("Waiting for client connection..\n");
+        if (verbose>-1) printf("Waiting for client connection..\n");
         msgsock = accept(sock, 0, 0);
         if (verbose) printf("Listening on socket %i\n", msgsock);
         //std::vector<std::string> banks;
@@ -249,7 +244,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
             if (rval <= 0) break;
             switch (usrpmsg){
                 case EXIT:
-                    if (verbose) printf("Client done\n");
+                    if (verbose>-1) printf("Client done\n");
                     break;
                 case LISTEN:
                     if (verbose) printf("Starting Listening.\n");
@@ -297,7 +292,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     nsamps_per_pulse = (unsigned int) (ipp_usec*RX_RATE/1e6);
                     
                     max_code_length = (size_t) floor(2*parms.first_range_km / 3.0e-1 / symboltime_usec);
-                    std::cout << "max code length: " << max_code_length << std::endl;
                     choose_pcode(&pcode0, &pcode1, max_code_length);
 
                     for (int i=0; i<pcode0.size(); i++){
@@ -450,12 +444,10 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                         std::cerr << "This is a bad record..\n";
                         //Do something..?
                     }
-                    printf("done transceivn\n");
                     //parms.first_range_km = first_range_km;
                     //parms.last_range_km = last_range_km;
                     parms.range_res_km = 1.5e-1*symboltime_usec;
                     fastdim = nsamps_per_pulse/dmrate;
-                    std::cout << "fastdim: " << fastdim << std::endl;
                     if (verbose) std::cout << "Done rxing 0\n";
                     memset(&actual_parms,0,sizeof(actual_parms));
                     actual_parms.freq_khz = freq/1e3;
@@ -581,11 +573,11 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     //send(msgsock, &return_status, sizeof(return_status),0);
                     //break;
 
-                    printf("slowdim: %i\n",slowdim);
-                    printf("nsamps_per_pulse: %i\n",nsamps_per_pulse);
-                    printf("RX_RATE: %f\n",RX_RATE);
-                    printf("bandwidth: %f\n",bandwidth);
-                    printf("dmrate: %i\n",dmrate);
+                    //printf("slowdim: %i\n",slowdim);
+                    //printf("nsamps_per_pulse: %i\n",nsamps_per_pulse);
+                    //printf("RX_RATE: %f\n",RX_RATE);
+                    //printf("bandwidth: %f\n",bandwidth);
+                    //printf("dmrate: %i\n",dmrate);
                     for (int mode=0; mode<2; mode++){
                         for (int pcode=0; pcode<2; pcode++){
                             rval = lp_filter(
@@ -643,8 +635,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     fpow[1].resize(nsamps_per_pulse/dmrate,0);
                     fvel[0].resize(nsamps_per_pulse/dmrate,0);
                     fvel[1].resize(nsamps_per_pulse/dmrate,0);
-                    std::cout << "About to do Doppler processing!!\n\n";
-                    std::cout << "slowdim: " << slowdim << "\n\n";
                     for (int mode=0; mode<2; mode++){
                         rval = doppler_process(
                             &ffvec_ptrs[mode].front(),
@@ -678,8 +668,6 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                 case GET_DATA:
                     nranges = fastdim - filter_delay;
                     //std::cout << "fastdim: " << fastdim << std::endl;
-                    std::cout << "filter_delay: " << filter_delay << std::endl;
-                    std::cout << "nranges: " << nranges << std::endl;
                     send(msgsock, &nranges, sizeof(nranges),0);
 
                     first_range_km = (pcode0.size() * 1.e-6*symboltime_usec) * 1.5e5;
