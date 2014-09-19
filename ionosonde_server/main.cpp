@@ -247,7 +247,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     if (verbose>-1) printf("Client done\n");
                     break;
                 case LISTEN:
-                    if (verbose) printf("Starting Listening.\n");
+                    if (verbose > -1) printf("Starting Listening.\n");
                     rval = recv_data(msgsock, &lparms, sizeof(lparms));
                     center_freq_khz = (lparms.end_freq_khz + lparms.start_freq_khz) / 2;
                     span_khz = lparms.end_freq_khz - lparms.start_freq_khz;
@@ -273,7 +273,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     break;
 
                 case SEND:
-                    if (verbose) printf("Starting sounding.\n");
+                    if (verbose > -1) printf("Starting sounding.\n");
 
                     rval = recv_data(msgsock, &parms, sizeof(parms));
 
@@ -462,7 +462,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     break;
 
                 case PROCESS:
-                    if (verbose) std::cout << "Starting processing\n";
+                    if (verbose > -1) std::cout << "Starting processing\n";
                     //dmrate = parms.symboltime_usec * parms.rxrate_khz / (osr*1000);
                     //dmrate = (size_t) (1.e-6*symboltime_usec * RX_RATE / osr);
                     bandwidth = 1/(2.e-6*symboltime_usec);
@@ -666,6 +666,7 @@ int UHD_SAFE_MAIN(int argc, char *argv[]){
                     break;
 
                 case GET_DATA:
+                    if (verbose > -1) std::cout << "Starting get_data\n";
                     nranges = fastdim - filter_delay;
                     //std::cout << "fastdim: " << fastdim << std::endl;
                     send(msgsock, &nranges, sizeof(nranges),0);
