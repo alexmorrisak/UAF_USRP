@@ -72,7 +72,7 @@ print "Number of range bins:", ranges.shape[0]
 ext = [minfreq/1e3, maxfreq/1e3, minrange, maxrange]
 asp = 2. * (maxfreq/1e3 - minfreq/1e3) / (maxrange - minrange);
 #asp = 1
-print asp
+#print asp
 #
 opower = np.rot90(opower)
 xpower = np.rot90(xpower)
